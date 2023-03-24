@@ -1,0 +1,18 @@
+[package]
+name = "fec"
+version = "0.1.0"
+edition = "2021"
+
+[[example]]
+name = "reed_sol_test"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitvec = "1.0.1"
+itertools = "0.10.5"
+nalgebra = "0.32.2"
+reed-solomon-erasure = "6.0.0"
+
+[dev-dependencies]
+proptest = "1.1.0"

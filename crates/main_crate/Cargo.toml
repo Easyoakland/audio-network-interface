@@ -1,0 +1,60 @@
+[package]
+name = "audio_network_interface"
+version = "0.1.0"
+edition = "2021"
+
+[[example]]
+name = "record_wav"
+
+[[example]]
+name = "plot_file_fft"
+required-features = ["plotters"]
+
+[[example]]
+name = "plot_f_vs_t"
+required-features = ["plotters"]
+
+[[example]]
+name = "spectogram"
+required-features = ["plotters"]
+
+[[bin]]
+name = "file_decoder"
+
+[[bin]]
+name = "file_comparison"
+
+[[bin]]
+name = "file_transmitter"
+
+#[[bin]]
+#name = "file_receiver"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dev-dependencies]
+criterion = "0.4.0"
+ordered-float = "3.6.0"
+
+[dependencies]
+anyhow = "1.0.70"
+bitvec = "1.0.1"
+clap = { version = "4.1.13", features = ["derive"] }
+cpal = "0.15.1"
+fec = { path = "../fec" }
+fixedbitset = "0.4.2"
+hound = "3.5.0"
+iterator_adapters = { path = "../iterator_adapters" }
+log = "0.4.17"
+ordered-float = "3.6.0"
+plotters = { version = "0.3.4", optional = true }
+simple_logger = "4.1.0"
+stft = { path = "../stft" }
+
+[features]
+default = []
+plotters = ["dep:plotters"]
+
+[[bench]]
+name = "audio_event_loop"
+harness = false
