@@ -12,7 +12,7 @@ fn test_signal(mut signal_frequency: f32, sample_rate: f32) {
     );
 
     let signal_frequency = signal_frequency;
-    dbg!(signal_frequency, sample_rate);
+    // dbg!(signal_frequency, sample_rate);
 
     // Generate example signal window parameters.
     let window_len = WindowLength::from_samples(2usize.pow(3));
@@ -41,7 +41,7 @@ fn test_signal(mut signal_frequency: f32, sample_rate: f32) {
 
     let power_transient = frequency_analysis.power();
     let total_energy: f64 = power_transient.into_iter().sum();
-    println!("Total signal energy for all frequencies: {total_energy}");
+    // eprintln!("Total signal energy for all frequencies: {total_energy}");
     let detection_threshold = 0.15 * total_energy;
 
     // Make sure no frequency has more energy than all frequencies combined.
@@ -49,7 +49,7 @@ fn test_signal(mut signal_frequency: f32, sample_rate: f32) {
         let freq_lower = bin_width * bin_idx as f32;
         let freq_higher = freq_lower + bin_width;
         let total_energy_of_freq = transient.iter().map(|x| x.powi(2)).sum::<f64>();
-        println!("Bin index: {bin_idx}; Frequency: {freq_lower}-{freq_higher} has energy {total_energy_of_freq}. Total energy {total_energy_of_freq}");
+        // eprintln!("Bin index: {bin_idx}; Frequency: {freq_lower}-{freq_higher} has energy {total_energy_of_freq}. Total energy {total_energy_of_freq}");
         assert!(total_energy_of_freq <= total_energy, "Bin index: {bin_idx}; Frequency: {freq_lower}-{freq_higher} has energy {total_energy_of_freq} which is more than total signal's {total_energy}.");
     }
 
@@ -58,7 +58,7 @@ fn test_signal(mut signal_frequency: f32, sample_rate: f32) {
         let freq_lower = bin_width * bin_idx as f32;
         let freq_higher = freq_lower + bin_width;
         let total_energy_of_freq = transient.iter().map(|x| x.powi(2)).sum::<f64>();
-        println!("Bin width: {bin_width}; Bin index: {bin_idx}; Frequency: {freq_lower}-{freq_higher}; Total energy: {total_energy_of_freq}");
+        // eprintln!("Bin width: {bin_width}; Bin index: {bin_idx}; Frequency: {freq_lower}-{freq_higher}; Total energy: {total_energy_of_freq}");
 
         // If the frequency is in the signal then it should have a large amplitude.
         if freq_lower <= signal_frequency && signal_frequency < freq_higher - f32::EPSILON {

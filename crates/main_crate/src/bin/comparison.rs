@@ -1,21 +1,20 @@
-//! This example will compare the intput file to the output file to determine
+//! This example will compare the input file to the output file to determine
 //! which bits were successfully transmitted from the input file to the output file.
 //! It will show how often each bit place was wrong.
 
-use std::path::Path;
-
-use audio_network_interface::{args::transmit_receive_args::Args, file_io::read_file_bytes};
+use audio_network_interface::{args::BaseCli, file_io::read_file_bytes};
 use clap::Parser as _;
 use fixedbitset::FixedBitSet;
+use std::path::Path;
 
 fn main() -> Result<(), anyhow::Error> {
     // Handle commandline arguments.
-    let opt = Args::parse();
-    simple_logger::init_with_level(opt.log_level).unwrap();
+    let opt = BaseCli::parse();
+    simple_logger::init_with_level(opt.log_opt.log_level).unwrap();
 
     // Read in files.
-    let input = read_file_bytes(Path::new(&opt.in_file))?;
-    let output = read_file_bytes(Path::new(&opt.out_file))?;
+    let input = read_file_bytes(Path::new(&opt.file_opt.in_file))?;
+    let output = read_file_bytes(Path::new(&opt.file_opt.out_file))?;
 
     // Count number of times each bit is different.
     let mut errors = [0u32; 8];

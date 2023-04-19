@@ -1,10 +1,47 @@
-use bitvec::prelude::{BitArray, LocalBits, Lsb0};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Device, FromSample, Sample, SampleFormat, SizedSample, Stream, StreamConfig};
-use log::{error, trace};
-use std::f32::consts::PI;
-use std::iter::{self, Chain, Iterator};
-use std::marker::Send;
+use crate::{
+    args::{FecSpec, TransmissionSpec},
+    constants::{
+        FIRST_BIN, REED_SOL_MAX_SHARDS, SENSITIVITY, SHARD_BITS_LEN, SHARD_BYTES_LEN,
+        SIMULTANEOUS_BYTES, TIME_SAMPLES_PER_SYMBOL,
+    },
+    transmit,
+};
+use bitvec::{
+    prelude::{BitArray, LocalBits, Lsb0},
+    vec::BitVec,
+};
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    BuildStreamError, Device, FromSample, PlayStreamError, Sample, SampleFormat, SizedSample,
+    Stream, StreamConfig,
+};
+use dsp::{
+    carrier_modulation::{bpsk_decode, bpsk_encode, null_decode, null_encode},
+    ofdm::{
+        ofdm_preamble_encode, ofdm_premable_cross_correlation_detector, OfdmDataDecoder,
+        OfdmFramesDecoder, OfdmFramesEncoder, SubcarrierDecoder, SubcarrierEncoder,
+    },
+    ook_fdm::{OokFdmConfig, OokFdmDecoder},
+    specs::FdmSpec,
+};
+use dyn_clone::{clone_trait_object, DynClone};
+use fec::{
+    parity::{ParityDecoder, ParityEncoder},
+    reed_solomon::{ReedSolomonDecoder, ReedSolomonEncoder},
+    traits::Function,
+};
+use iterator_adapters::IteratorAdapter;
+use log::{error, trace, warn};
+use num_complex::Complex;
+use std::{
+    io,
+    iter::{self, Iterator},
+    marker::{Send, Sync},
+    sync::mpsc::{self, RecvError, SyncSender, TrySendError},
+    time::{Duration, Instant},
+};
+use stft::{fft::window_fn, time_samples_to_frequency, SpecCompute, WindowLength};
+use thiserror::Error;
 
 /// Writes the data given by the closure onto the output stream.
 fn write_data<T>(output: &mut [T], channels: usize, next_sample: &mut dyn FnMut() -> f32)
@@ -19,20 +56,39 @@ where
     }
 }
 
+/// Errors that can happen while building or playing a stream.
+#[derive(Error, Debug)]
+pub enum StreamError {
+    #[error("Play stream error: {0}")]
+    PlayStreamError(#[from] PlayStreamError),
+    #[error("Build stream error: {0}")]
+    BuildStreamError(#[from] BuildStreamError),
+}
+
 /// Main logic for sending sounds through the speaker.
 fn run<T>(
     device: &Device,
     config: &StreamConfig,
-    mut audio_data: impl Iterator<Item = f32> + Send + Sync + 'static,
-) -> anyhow::Result<MustUse<Stream>>
+    mut signal: impl Iterator<Item = f32> + Send + Sync + 'static,
+    finished_indicator_channel: SyncSender<()>,
+) -> Result<MustUse<Stream>, StreamError>
 where
     T: SizedSample + FromSample<f32>,
 {
     let channels = config.channels as usize;
 
-    let mut next_value = move || match audio_data.next() {
+    let mut next_value = move || match signal.next() {
         Some(x) => x,
-        None => Sample::EQUILIBRIUM,
+        None => {
+            // Indicate end of signal if channel to notify exists.
+            match finished_indicator_channel.try_send(()) {
+                Ok(()) => trace!("Finished playing stream."),
+                // Full error only occurs if already sent signal.
+                Err(TrySendError::Full(())) => (),
+                Err(e) => error!("Error submitting end of signal: {e}"),
+            }
+            Sample::EQUILIBRIUM
+        }
     };
 
     let err_fn = |err| error!("an error occurred on stream: {}", err);
@@ -50,25 +106,39 @@ where
     Ok(MustUse(stream))
 }
 
-/// Selects the correct data type depending on supported format and then runs.
-fn play_stream(
-    device: &Device,
-    frequency: impl Iterator<Item = f32> + Sync + Send + 'static,
-) -> anyhow::Result<MustUse<Stream>> {
-    let config = device.default_output_config().unwrap();
+/// Returns a [Stream] that plays sound samples until the returned stream is dropped. If the iterator runs out it plays silence (equilibrium samples) and sends `()` through the [SyncSender].
+pub fn play_stream(
+    signal: impl Iterator<Item = f32> + Sync + Send + 'static,
+    tx: SyncSender<()>,
+) -> Result<MustUse<Stream>, StreamError> {
+    let host = cpal::default_host();
+    let device = host
+        .default_output_device()
+        .expect("no output device available");
+    let config = device
+        .default_output_config()
+        .expect("no default config for device");
+
+    trace!(
+        "Output device: {}",
+        device
+            .name()
+            .unwrap_or_else(|e| format!("no device name. {e}"))
+    );
     trace!("Default output config: {:?}", config);
 
+    // Select the correct data type depending on supported format and then runs.
     match config.sample_format() {
-        SampleFormat::I8 => run::<i8>(device, &config.into(), frequency),
-        SampleFormat::I16 => run::<i16>(device, &config.into(), frequency),
-        SampleFormat::I32 => run::<i32>(device, &config.into(), frequency),
-        SampleFormat::I64 => run::<i64>(device, &config.into(), frequency),
-        SampleFormat::U8 => run::<u8>(device, &config.into(), frequency),
-        SampleFormat::U16 => run::<u16>(device, &config.into(), frequency),
-        SampleFormat::U32 => run::<u32>(device, &config.into(), frequency),
-        SampleFormat::U64 => run::<u64>(device, &config.into(), frequency),
-        SampleFormat::F32 => run::<f32>(device, &config.into(), frequency),
-        SampleFormat::F64 => run::<f64>(device, &config.into(), frequency),
+        SampleFormat::I8 => run::<i8>(&device, &config.into(), signal, tx),
+        SampleFormat::I16 => run::<i16>(&device, &config.into(), signal, tx),
+        SampleFormat::I32 => run::<i32>(&device, &config.into(), signal, tx),
+        SampleFormat::I64 => run::<i64>(&device, &config.into(), signal, tx),
+        SampleFormat::U8 => run::<u8>(&device, &config.into(), signal, tx),
+        SampleFormat::U16 => run::<u16>(&device, &config.into(), signal, tx),
+        SampleFormat::U32 => run::<u32>(&device, &config.into(), signal, tx),
+        SampleFormat::U64 => run::<u64>(&device, &config.into(), signal, tx),
+        SampleFormat::F32 => run::<f32>(&device, &config.into(), signal, tx),
+        SampleFormat::F64 => run::<f64>(&device, &config.into(), signal, tx),
         sample_format => panic!("Unsupported sample format '{sample_format}'"),
     }
 }
@@ -84,18 +154,29 @@ impl<T> From<T> for MustUse<T> {
     }
 }
 
-/// Returns a stream that plays sound samples until the returned stream is dropped. If the iterator runs out it plays silence (equilibrium samples).
-pub fn play_freq(
-    frequency: impl Iterator<Item = f32> + Send + Sync + 'static,
-) -> anyhow::Result<MustUse<Stream>> {
-    let host = cpal::default_host();
-    let device = host
-        .default_output_device()
-        .expect("no output device available");
+/// Errors that can happen while blocking on building or playing a stream.
+#[derive(Error, Debug)]
+pub enum BlockingStreamError {
+    #[error("Stream Error: {0}")]
+    StreamError(#[from] StreamError),
+    #[error("Stream send half disconnected before notifying finished playing")]
+    RecvError,
+}
 
-    trace!("Output device: {}", device.name().unwrap());
+impl From<RecvError> for BlockingStreamError {
+    fn from(_: RecvError) -> Self {
+        BlockingStreamError::RecvError
+    }
+}
 
-    play_stream(&device, frequency)
+/// Plays a signal and blocks until it is finished playing.
+pub fn play_stream_blocking(
+    signal: impl Iterator<Item = f32> + Send + Sync + 'static,
+) -> Result<(), BlockingStreamError> {
+    let (tx, rx) = mpsc::sync_channel(0);
+    let _stream = play_stream(signal, tx)?;
+    // Block while waiting for end signal.
+    rx.recv().map_err(Into::into)
 }
 
 /// Coverts byte to iterator of bool.
@@ -116,232 +197,237 @@ pub fn bytes_to_bits<T: Iterator<Item = u8>>(bytes: T) -> BitIter<T> {
     bytes.into_iter().flat_map(byte_to_bit)
 }
 
-/// All parameters needed for amplitude modulation.
-#[derive(Debug, Default, Clone)]
-pub struct AmplitudeModulationConfig {
-    channel_width: f32,           // Frequency channel width.
-    parallel_channels_num: usize, // Simultaneous frequency channels for transmission.
-    sample_rate: f32,             // Samples per second.
-    start_freq: f32,              // Lower bound of lowest frequency channel.
-    symbol_length: usize,         // The number of samples per symbol.
+/// Generates an FDM ook transmission.
+pub fn encode_fdm(
+    fdm_spec: FdmSpec,
+    sample_rate: f32,
+    bits: impl Iterator<Item = bool> + Clone + Send + Sync + 'static,
+) -> impl Iterator<Item = f32> + Clone {
+    // Generate speaker amplitude iterator.
+    // TODO replace leaking with scoped thread.
+    // Not a big deal because config only needs to be made once to use for all future signals.
+    let config = Box::leak(Box::new(OokFdmConfig::new(
+        fdm_spec.bit_width,
+        fdm_spec.parallel_channels,
+        sample_rate,
+        fdm_spec.start_freq,
+        WindowLength::from_duration(Duration::from_millis(fdm_spec.symbol_time), sample_rate)
+            .samples(),
+    )));
+    config.encode(bits)
 }
 
-/// The iterator for the type of the encoded amplitude modulation. It maintains traits (ex. `Clone`) of the original iterator.
-/// It prepends and appends a guard symbol to the iterator.
-type IterWithGuard<T> =
-    Chain<Chain<iter::Take<iter::Repeat<bool>>, T>, iter::Take<iter::Repeat<bool>>>;
+/// Iterator that can be used as a trait object **and** cloned.
+pub trait DynCloneIterator<T>: Iterator<Item = T> + Send + Sync + DynClone {}
+clone_trait_object!(<T> DynCloneIterator<T>);
+impl<T, I: Iterator<Item = T> + Send + Sync + Clone> DynCloneIterator<T> for I {}
 
-impl AmplitudeModulationConfig {
-    /// Basic constructor
-    /// # Panics
-    /// - Max frequency required for encoding must be less than Nyquist Frequency.
-    /// The max frequency is determined by simultaneous channels and starting frequency.
-    pub fn new(
-        channel_width: f32,
-        parallel_channels_num: usize,
-        sample_rate: f32,
-        start_freq: f32,
-        symbol_length: usize,
-    ) -> Self {
-        let max_freq = start_freq + parallel_channels_num as f32 * channel_width;
-        assert!(
-            sample_rate/2.0 >= max_freq,
-            "Sample rate not high enough. For encoding specified parameters sample rate must be at least 2x{max_freq}. Try decreasing parallel channels and starting frequency."
-        );
-        AmplitudeModulationConfig {
-            channel_width,
-            parallel_channels_num,
-            sample_rate,
-            start_freq,
-            symbol_length,
+const PADDED_SHARDS: usize = 1;
+/// Represents number of bytes that can be used in one chunk of reed sol encoding.
+const fn reed_sol_chunk_byte_size(parity_shards: usize) -> usize {
+    (REED_SOL_MAX_SHARDS * SHARD_BYTES_LEN)
+        - parity_shards * SHARD_BYTES_LEN
+        - PADDED_SHARDS * SHARD_BYTES_LEN
+}
+
+/// Logic for sending a data transmission to a data sink.
+pub fn encode_transmission<E>(
+    fec_spec: FecSpec,
+    transmission_spec: TransmissionSpec,
+    bytes: impl DynCloneIterator<u8> + Clone + 'static,
+    mut sink: impl FnMut(Box<dyn DynCloneIterator<f32>>) -> Result<(), E>,
+) -> Result<(), E>
+where
+    E: Sync + Send + std::error::Error + 'static,
+{
+    {
+        let reed_encoder = ReedSolomonEncoder {
+            block_size: SHARD_BYTES_LEN,
+            parity_blocks: fec_spec.parity_shards,
+        };
+        let parity_encoder = ParityEncoder {
+            data_block_size: SHARD_BITS_LEN,
+        };
+
+        // Encode with reed_solomon.
+        let reed_encoding = bytes
+            .chunks(reed_sol_chunk_byte_size(fec_spec.parity_shards))
+            .map(Vec::from_iter)
+            .map(move |x| reed_encoder.map(x));
+        // Add parity checks to shards and convert bytes to bits.
+        let bits = reed_encoding
+            .map(Result::unwrap) // TODO return this error
+            .map(move |x| parity_encoder.map(x.into_iter().flatten().collect()));
+        let bits = bits.flatten();
+        trace!("Transmitting {} bits.", bits.clone().count());
+
+        // Get speaker sample_rate.
+        let sample_rate = cpal::default_host()
+            .default_output_device()
+            .expect("no output device available")
+            .default_output_config()
+            .unwrap()
+            .sample_rate()
+            .0;
+
+        // Create `encoded_signal`
+        let subcarriers_encoders = Box::leak(Box::new(
+            [SubcarrierEncoder::T0(null_encode);
+                time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
+        ));
+        let active_bins = FIRST_BIN..(FIRST_BIN + 8 * SIMULTANEOUS_BYTES);
+        for i in active_bins {
+            subcarriers_encoders[i] = SubcarrierEncoder::T1(bpsk_encode);
         }
-    }
 
-    /// Creates new iterator over encoded values.
-    pub fn encode<T: Iterator<Item = bool>>(
-        &self,
-        bits: T,
-    ) -> AmplitudeModulationSignal<IterWithGuard<T>> {
-        let guard = iter::repeat(true).take(self.parallel_channels_num);
-        let guard_end = guard.clone();
-        let bits = guard.chain(bits).chain(guard_end);
-        AmplitudeModulationSignal {
-            bits,
-            symbol_frequencies: Vec::new(),
-            symbol_idx: self.symbol_length,
-            config: self,
+        // Encode appropriately.
+        let encoded_signal: Box<dyn DynCloneIterator<f32>> = match transmission_spec {
+            TransmissionSpec::Fdm(fdm) => {
+                Box::new(transmit::encode_fdm(fdm, sample_rate as f32, bits))
+            }
+            TransmissionSpec::Ofdm(ofdm_spec) => {
+                let frames = OfdmFramesEncoder::new(bits, subcarriers_encoders, ofdm_spec);
+                trace!("Encoded {} frames.", frames.clone().count());
+                Box::new(frames.flatten())
+            }
+        };
+
+        // Play `encoded_signal`.
+        let start = Instant::now();
+        sink(encoded_signal)?;
+        let end = Instant::now();
+        trace!("Played stream for {:?}", (end - start));
+
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum DecodingError {
+    #[error("No packet found: {0}")]
+    NoPacket(String),
+    #[error("Io Error: {0}")]
+    Io(#[from] io::Error),
+    #[error("Forward error correction failed to decode: {0}")]
+    Fec(String),
+}
+
+/// Logic for decoding the data from a channel source.
+pub fn decode_transmission(
+    fec_spec: FecSpec,
+    transmission_spec: TransmissionSpec,
+    source: impl DynCloneIterator<f32> + Clone,
+    startup_samples_to_skip: usize,
+    sample_rate: f32,
+) -> Result<Vec<u8>, DecodingError> {
+    // Skip startup samples
+    let source = source.skip(startup_samples_to_skip);
+
+    // Get data using correct method.
+    let bits: BitVec<u8, Lsb0> = match transmission_spec {
+        TransmissionSpec::Fdm(fdm_spec) => {
+            // Compute stft of data.
+            let window_len = WindowLength::from_duration(
+                Duration::from_millis(fdm_spec.symbol_time),
+                sample_rate,
+            );
+            let spec_compute = SpecCompute::new(
+                source.map(|x| x as f64).collect(),
+                window_len,
+                window_len,
+                window_fn::hann,
+            );
+            let stft = spec_compute.stft();
+
+            // Setup transmission parameters.
+            let frequency_channels = (0..fdm_spec.parallel_channels)
+                .map(|i| fdm_spec.start_freq + (1 + i) as f32 * fdm_spec.bit_width)
+                .collect();
+            let decoder = OokFdmDecoder {
+                frequency_channels,
+                sample_rate,
+            };
+
+            // Decode the transmission.
+            bytes_to_bits(decoder.decode_ook_fdm(&stft, SENSITIVITY).into_iter()).collect()
         }
-    }
-}
+        TransmissionSpec::Ofdm(ofdm_spec) => {
+            // Describe subcarrier encoding.
+            let subcarriers_decoders = Box::leak(Box::new(
+                [SubcarrierDecoder::Data(null_decode);
+                    time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
+            ));
+            let active_bins = FIRST_BIN..(FIRST_BIN + 8 * SIMULTANEOUS_BYTES);
+            for i in active_bins {
+                subcarriers_decoders[i] = SubcarrierDecoder::Data(bpsk_decode);
+            }
+            // Generate transmitted preamble for comparison.
+            let tx_preamble = ofdm_preamble_encode(
+                ofdm_spec.seed,
+                ofdm_spec.short_training_repetitions,
+                ofdm_spec.time_symbol_len,
+                ofdm_spec.cyclic_prefix_len,
+            );
+            // Map to complex for use in functions.
+            let data_complex = source
+                .clone()
+                .map(|x| Complex { re: x, im: 0.0 })
+                .collect::<Vec<_>>();
+            let tx_preamble_complex = tx_preamble
+                .map(|x| Complex { re: x, im: 0.0 })
+                .collect::<Vec<_>>();
+            // Detect start of frame by comparing to reference preamble.
+            let Some(packet_start) = ofdm_premable_cross_correlation_detector(
+                &data_complex,
+                &tx_preamble_complex
+                    [..ofdm_spec.time_symbol_len / ofdm_spec.short_training_repetitions],
+                ofdm_spec.cross_correlation_threshold,
+            ) else {
+                return Err(DecodingError::NoPacket("Can't find start of packet.".to_owned()));
+            };
+            trace!("Packet Start: {:?}", packet_start);
+            // Setup decoder.
+            let frames_decoder = OfdmFramesDecoder::new(
+                source.into_iter().skip(packet_start.0),
+                *subcarriers_decoders,
+                ofdm_spec,
+            );
+            frames_decoder
+                .flat_map(OfdmDataDecoder::decode::<u8, Lsb0>)
+                .collect()
+        }
+    };
 
-/// Each item in the iterator is the next audio sample for transmitting the given bits.
-/// Iterator generates the samples for an amplitude modulated transmission from bits.
-#[derive(Debug, Clone)]
-pub struct AmplitudeModulationSignal<'a, T: Iterator<Item = bool>> {
-    bits: T,                      // The bits to transmit.
-    symbol_frequencies: Vec<f32>, // The frequencies to transmit for the symbol.
-    config: &'a AmplitudeModulationConfig,
-    symbol_idx: usize, // The idx for the next sample.
-}
+    let parity_decoder = ParityDecoder {
+        data_block_size: SHARD_BITS_LEN,
+    };
+    let reed_decoder = ReedSolomonDecoder {
+        parity_shards: fec_spec.parity_shards,
+    };
 
-impl<T: Iterator<Item = bool>> AmplitudeModulationSignal<'_, T> {}
-
-impl<T: Iterator<Item = bool>> Iterator for AmplitudeModulationSignal<'_, T> {
-    type Item = f32;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        {
-            // If previous symbol has already been generated for symbol length start the next symbol.
-            if self.symbol_idx >= self.config.symbol_length {
-                // Reset internal trackers for iterator.
-                self.symbol_frequencies.clear();
-                self.symbol_idx = 0;
-
-                let mut chunk = Vec::with_capacity(self.config.parallel_channels_num);
-                let mut i = 0;
-                // Get the next chunk of bits.
-                while i < self.config.parallel_channels_num {
-                    chunk.push(match self.bits.next() {
-                        Some(x) => x,
-                        None => {
-                            if i == 0 {
-                                // If the bit iterator is already exhausted then there are no more samples to generate.
-                                return None;
-                            } else {
-                                false
-                            }
-                        }
-                    });
-                    i += 1;
-                }
-                // For each bit in the chunk generate the corresponding sinusoid for that frequency.
-                for (i, bit) in chunk.into_iter().enumerate() {
-                    match bit {
-                        true => self.symbol_frequencies.push(
-                            self.config.start_freq + (1 + i) as f32 * self.config.channel_width,
-                        ),
-                        false => (),
-                    }
+    // Decode fec.
+    let shards = parity_decoder.map(bits);
+    let bytes = shards
+        .into_iter()
+        .chunks(REED_SOL_MAX_SHARDS) // decode each chunk
+        .enumerate()
+        .map(|(i, x)| {
+            let temp = reed_decoder.map(x.clone()); // with reed solomon
+            match temp {
+                Ok(x) => x,
+                Err(e) => {
+                    warn!("Reed solomon decoding failed on block {i}: {e}");
+                    x.into_iter()
+                        .map(|shard| match shard {
+                            Some(x) => x,                     // using correct values
+                            None => vec![0; SHARD_BYTES_LEN], // and replacing values that couldn't be corrected with null (0 byte) for the number of missing values
+                        })
+                        .flatten()
+                        .collect()
                 }
             }
-            // Generate next sample.
-            let t = self.symbol_idx as f32 / self.config.sample_rate;
-            // Add all frequencies together and normalize by number of channels so each channel's amplitude is consistent.
-            let sum: f32 = self
-                .symbol_frequencies
-                .iter()
-                .map(|f| (2.0 * PI * f * t).sin())
-                .sum();
-            // Increment to next position of symbol.
-            self.symbol_idx += 1;
-            // Produce sinusoid of maximum amplitude.
-            Some(sum / self.config.parallel_channels_num as f32)
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (
-            self.bits.size_hint().0 / self.config.parallel_channels_num * self.config.symbol_length
-                + self.config.symbol_length
-                - self.symbol_idx,
-            self.bits
-                .size_hint()
-                .1
-                .map(|x| x / self.config.parallel_channels_num)
-                .map(|x| x * self.config.symbol_length)
-                .map(|x| x + self.config.symbol_length - self.symbol_idx),
-        )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AmplitudeModulationConfig;
-
-    #[test]
-    fn size_one_bit() {
-        let bits = [true].into_iter();
-        let channel_width = 1.0;
-        let parallel_channels_num = 1;
-        let sample_rate = 4.0;
-        let start_freq = 1.0;
-        let symbol_length = 1;
-        let config = AmplitudeModulationConfig::new(
-            channel_width,
-            parallel_channels_num,
-            sample_rate,
-            start_freq,
-            symbol_length,
-        );
-        let iter = config.encode(bits);
-        // If there is one bit it should be transmitted for one symbol length + 2 guard symbols;
-        let signal_length = symbol_length + 2 * symbol_length;
-        assert_eq!(signal_length, iter.clone().count());
-        assert_eq!(iter.clone().count(), iter.clone().size_hint().0);
-        assert_eq!(iter.clone().count(), iter.clone().size_hint().1.unwrap());
-
-        // Size hint should stay correct
-        let mut iter = iter.enumerate();
-        while let Some((i, _)) = iter.next() {
-            assert_eq!(
-                signal_length - 1 - i,
-                iter.clone().count(),
-                "Length failed on iteration {i}"
-            );
-            assert_eq!(
-                iter.clone().count(),
-                iter.clone().size_hint().0,
-                "Lower bound failed on iteration {i}"
-            );
-            assert_eq!(
-                iter.clone().count(),
-                iter.clone().size_hint().1.unwrap(),
-                "Upper bound failed on iteration {i}"
-            );
-        }
-    }
-
-    #[test]
-    fn size_multi_bit() {
-        let bits = [false, true].into_iter();
-        let channel_width = 1.0;
-        let parallel_channels_num = 2;
-        let sample_rate = 6.0;
-        let start_freq = 1.0;
-        let symbol_length = 2;
-        let config = AmplitudeModulationConfig::new(
-            channel_width,
-            parallel_channels_num,
-            sample_rate,
-            start_freq,
-            symbol_length,
-        );
-        let iter = config.encode(bits);
-
-        // If there are two bits in parallel should be transmitted for one symbol length + 2 guard symbol;
-        let signal_length = symbol_length + 2 * symbol_length;
-        assert_eq!(signal_length, iter.clone().count());
-        assert_eq!(iter.clone().count(), iter.clone().size_hint().0);
-        assert_eq!(iter.clone().count(), iter.clone().size_hint().1.unwrap());
-
-        // Size hint should stay correct
-        let mut iter = iter.enumerate();
-        while let Some((i, _)) = iter.next() {
-            assert_eq!(
-                signal_length - 1 - i,
-                iter.clone().count(),
-                "Length failed on iteration {i}"
-            );
-            assert_eq!(
-                iter.clone().count(),
-                iter.clone().size_hint().0,
-                "Lower bound failed on iteration {i}"
-            );
-            assert_eq!(
-                iter.clone().count(),
-                iter.clone().size_hint().1.unwrap(),
-                "Upper bound failed on iteration {i}"
-            );
-        }
-    }
+        })
+        .flatten()
+        .collect();
+    Ok(bytes)
 }

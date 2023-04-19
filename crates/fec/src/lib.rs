@@ -10,3 +10,6 @@ pub mod reed_solomon;
 
 /// Methods for utilizing convolutional encoding.
 mod viterbi {}
+
+/// Traits for generic processing
+pub mod traits;

@@ -1,0 +1,22 @@
+[package]
+name = "dsp"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitvec = "1.0.1"
+clap = { version = "4.1.13", features = ["derive"] }
+iterator_adapters = { path = "../iterator_adapters" }
+log = "0.4.17"
+num-complex = "0.4.3"
+num-traits = "0.2.15"
+ordered-float = "3.6.0"
+rand = "0.8.5"
+rand_core = "0.6.4"
+rand_pcg = "0.3.1"
+stft = { path = "../stft" }
+
+[dev-dependencies]
+proptest = "1.1.0"

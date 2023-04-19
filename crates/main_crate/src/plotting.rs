@@ -1,4 +1,5 @@
 use log::info;
+use num_traits::Zero;
 use plotters::prelude::*;
 use stft::Stft;
 
@@ -67,17 +68,16 @@ pub fn plot_fft(
 
 /// Plot given series with x axis as each sample's index.
 pub fn plot_series(
-    file_in: &str,
     file_out: &str,
     mut data: Vec<Vec<f64>>,
     title: &str,
-    should_log: bool,
+    log_plot: bool,
     floor: f64,
 ) -> anyhow::Result<()> {
     for series in data.iter_mut() {
         for datapoint in series.iter_mut() {
             // log base 10 the data.
-            if should_log {
+            if log_plot {
                 *datapoint = datapoint.log10();
             }
             // Floor data.
@@ -126,7 +126,7 @@ pub fn plot_series(
     }
 
     root.present()?;
-    info!("Successfully saved fft graph of \"{file_in}\" to {file_out}");
+    info!("Successfully saved graph of series to {file_out}");
     Ok(())
 }
 
@@ -134,16 +134,15 @@ pub fn plot_series(
 pub fn plot_spectogram(
     stft: &Stft,
     bin_width: f32,
-    file_in: &str,
     file_out: &str,
     title: &str,
-    should_log: bool,
+    log_plot: bool,
 ) -> anyhow::Result<()> {
     let mut data = stft.data().to_owned();
     for series in data.iter_mut() {
         for datapoint in series.iter_mut() {
             // log base 10 the data.
-            if should_log {
+            if log_plot {
                 *datapoint = datapoint.log10();
             }
             //  Floor of -1.
@@ -168,11 +167,7 @@ pub fn plot_spectogram(
     info!("Min of plot is {min}");
 
     // setup graph
-    let root = BitMapBackend::new(
-        &file_out,
-        (data[0].len().min(1280usize).try_into().unwrap(), 720),
-    )
-    .into_drawing_area();
+    let root = BitMapBackend::new(&file_out, (1280, 720)).into_drawing_area();
     root.fill(&WHITE)?;
     let mut chart = ChartBuilder::on(&root)
         .caption(title, ("sans-serif", 50).into_font())
@@ -215,7 +210,64 @@ pub fn plot_spectogram(
     }
 
     root.present()?;
-    info!("Successfully saved fft graph of \"{file_in}\" to {file_out}");
+    info!("Successfully saved fft graph of {file_out}");
+    Ok(())
+}
+
+/// Plot scatterplot.
+pub fn scatterplot<S>(
+    data: Vec<(f32, f32, S)>,
+    radius: u32,
+    file_out: &str,
+    title: &str,
+) -> anyhow::Result<()>
+where
+    S: Into<ShapeStyle>,
+{
+    // Find extents of the data.
+    let mut max = (f32::zero(), f32::zero());
+    let mut min = (f32::zero(), f32::zero());
+    for point in data.iter() {
+        max.0 = max.0.max(point.0);
+        max.1 = max.1.max(point.1);
+        min.0 = min.0.min(point.0);
+        min.1 = min.1.min(point.1);
+    }
+    info!("Max of plot is {max:?}");
+    info!("Min of plot is {min:?}");
+
+    // Setup graph.
+    let root = BitMapBackend::new(&file_out, (1280, 720)).into_drawing_area();
+    root.fill(&WHITE)?;
+    let mut chart = ChartBuilder::on(&root)
+        .caption(title, ("sans-serif", 50).into_font())
+        .margin(5)
+        .x_label_area_size(50)
+        .y_label_area_size(60)
+        .build_cartesian_2d(min.0..max.0, min.1..max.1)?;
+
+    // Draw the tickmarks and mesh.
+    chart
+        .configure_mesh()
+        // .disable_mesh()
+        // .y_label_style(("sans-serif", 15).into_font())
+        // .x_label_style(("sans-serif", 15).into_font())
+        .x_desc("X Series")
+        .y_desc("Y Series")
+        .draw()?;
+
+    // Plot all points.
+    /* let plotting_area = chart.plotting_area();
+    for point in data {
+        plotting_area.draw_pixel(point, color)?;
+    } */
+    chart.draw_series(
+        data.into_iter()
+            .map(|(x, y, style)| Circle::new((x, y), radius, style)),
+    )?;
+
+    root.present()?;
+    info!("Successfully saved fft graph of to {file_out}");
     Ok(())
 }
 

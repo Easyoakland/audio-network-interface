@@ -1,10 +1,9 @@
+use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
 use std::{
     fs::File,
     io::{BufReader, BufWriter, Bytes, Read, Write},
     path::Path,
 };
-
-use hound::{SampleFormat, WavReader, WavSpec};
 
 /// Read file to byte iterator.
 pub fn read_file_bytes(file: &Path) -> anyhow::Result<Bytes<BufReader<File>>> {
@@ -27,7 +26,7 @@ pub fn read_wav(file: &Path) -> (WavSpec, Vec<f64>) {
     let mut reader =
         WavReader::open(file).unwrap_or_else(|err| panic!("Invalid wav file {file:?}: {err}."));
     let spec = reader.spec();
-    log::info!("Spec: {:?}", reader.spec());
+    log::trace!("Spec: {:?}", reader.spec());
     // Select correct format representation.
     let data = match spec.sample_format {
         SampleFormat::Float => reader
@@ -42,4 +41,20 @@ pub fn read_wav(file: &Path) -> (WavSpec, Vec<f64>) {
             .collect(),
     };
     (spec, data)
+}
+
+/// Write data to wav file.
+pub fn write_wav(file: &Path, samples: impl Iterator<Item = f32>) -> Result<(), hound::Error> {
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate: 48000,
+        bits_per_sample: 32,
+        sample_format: SampleFormat::Float,
+    };
+    let mut writer = WavWriter::create(file, spec)?;
+    for sample in samples {
+        writer.write_sample(sample)?;
+    }
+    writer.finalize()?;
+    Ok(())
 }

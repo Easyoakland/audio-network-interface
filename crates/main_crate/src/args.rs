@@ -1,49 +1,73 @@
 use clap::{
     builder::{PossibleValuesParser, TypedValueParser as _},
-    Parser,
+    Args, Parser, Subcommand,
 };
+use dsp::specs::{FdmSpec, OfdmSpec};
 use log::Level;
 
-pub mod transmit_receive_args {
-    use super::*;
-    #[derive(Parser, Debug)]
-    #[command(version, about = "Data transmission over audio.", long_about = None)]
-    pub struct Args {
-        /// The input file.
-        #[arg(index = 1, required = true)]
-        pub in_file: String,
+#[derive(Parser, Clone)]
+#[command(version)]
+/// Data transmission over audio.
+pub struct BaseCli {
+    #[command(flatten)]
+    pub log_opt: LoggingOpt,
 
-        /// The output file.
-        #[arg(short, long, default_value_t = String::from("out.out"))]
-        pub out_file: String,
+    #[command(flatten)]
+    pub file_opt: FileOpt,
+}
 
-        /// The audio device to use.
-        #[arg(short, long, default_value_t = String::from("default"))]
-        pub device: String,
+#[derive(Parser, Clone)]
+#[command(version)]
+/// Data transmission over audio.
+pub struct TransmissionCli {
+    #[command(flatten)]
+    pub base: BaseCli,
 
-        /// The logging level to use.
-        #[arg(
+    /*     /// The audio device to use.
+       #[arg(short, long, default_value_t = String::from("default"))]
+       pub device: String,
+    */
+    /// The forward error correction information
+    #[command(flatten)]
+    pub fec_spec: FecSpec,
+
+    /// The spec for a transmission.
+    // TODO Include things like realtime_vs_file
+    #[command(subcommand)]
+    pub transmission_spec: TransmissionSpec,
+}
+
+#[derive(Args, Clone)]
+pub struct LoggingOpt {
+    /// The logging level to use.
+    #[arg(
             short, long, default_value_t = Level::Info,
             // Needed because enum is foreign so can't use ValueEnum derive.
             value_parser = PossibleValuesParser::new(["trace", "debug", "info", "warn", "error"]).map(|s| s.parse::<Level>().unwrap()),
             ignore_case = true
         )]
-        pub log_level: Level,
+    pub log_level: Level,
+}
 
-        /// The time per symbol in milliseconds.
-        #[arg(short = 't', long, default_value_t = 100)]
-        pub symbol_time: u64,
+#[derive(Args, Clone)]
+pub struct FileOpt {
+    /// The input file.
+    #[arg(index = 1, required = true)]
+    pub in_file: String,
 
-        /// The width allocated to a bit in hertz. Total bandwith for a byte is 8 * width.
-        #[arg(short = 'w', long, default_value_t = 20.0)]
-        pub bit_width: f32,
+    /// The output file.
+    #[arg(short, long)]
+    pub out_file: String,
+}
 
-        /// The starting frequency of the transmission in hertz.
-        #[arg(short, long, default_value_t = 1000.0)]
-        pub start_freq: f32,
+#[derive(Args, Clone)]
+pub struct FecSpec {
+    #[arg(short, long, default_value_t = 5)]
+    pub parity_shards: usize,
+}
 
-        /// The number of parallel channels to use for transmission.
-        #[arg(short, long, default_value_t = 8)]
-        pub parallel_channels: usize,
-    }
+#[derive(Subcommand, Clone)]
+pub enum TransmissionSpec {
+    Fdm(FdmSpec),
+    Ofdm(OfdmSpec),
 }

@@ -1,9 +1,9 @@
 //! Crate for finding the Short Time Fourier Transform of a real signal.
 
-use std::time::Duration;
-
 use derive_more::{Add, Div, Mul, Sub};
 use fft::window_fn::WindowFn;
+use std::time::Duration;
+
 /// Relating to frequency analysis ex. dtft and fft.
 pub mod fft;
 
@@ -148,6 +148,18 @@ pub fn bin_width_from_freq(sample_rate: f32, sample_num: usize) -> f32 {
     max_freq / sample_num as f32
 }
 
+/// Converts a number of frequency samples to time samples.
+/// N samples to 2(N-1) samples.
+pub const fn frequency_samples_to_time(freq_samples: usize) -> usize {
+    2 * (freq_samples - 1)
+}
+
+/// Converts a number of time samples to frequency samples.
+/// N samples to (N/2)+1 samples.
+pub const fn time_samples_to_frequency(time_samples: usize) -> usize {
+    (time_samples / 2) + 1
+}
+
 impl SpecCompute {
     /// Basic constructor.
     pub fn new(
@@ -192,11 +204,11 @@ impl SpecCompute {
             fft::window_fn::apply_window(&mut window_of_data, self.window_fn);
 
             // Take the fourier transform of the window.
-            let freq_data = fft::scaled_fft(window_of_data.into_iter().collect());
+            let freq_data = fft::scaled_real_fft(&mut window_of_data);
 
             // Add the analysis to the results.
             for (bin_idx, bin_value) in freq_data.into_iter().enumerate() {
-                result[bin_idx].push(bin_value);
+                result[bin_idx].push(bin_value.norm());
             }
         }
 

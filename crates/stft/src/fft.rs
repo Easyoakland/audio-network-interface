@@ -1,28 +1,84 @@
-use realfft::RealFftPlanner;
+use realfft::{
+    num_complex::Complex,
+    num_traits::{Float, FromPrimitive, Signed},
+    RealFftPlanner,
+};
+use std::{
+    fmt::Debug,
+    marker::{Copy, Send, Sync},
+};
 
-/// Take normalized fft and return magnitudes.
-pub fn scaled_fft(data: Vec<f64>) -> Vec<f64> {
+// Trait acts as generic bounds alias.
+#[rustfmt::skip]
+pub trait FourierFloat: Copy + Float  + FromPrimitive + Signed + Sync + Send + Debug + 'static {}
+#[rustfmt::skip]
+impl<T: Copy + Float + FromPrimitive + Signed + Sync + Send + Debug + 'static> FourierFloat for T {}
+
+/// Take normalized fft and return complex values.
+/// Input becomes garbage after this.
+pub fn scaled_real_fft<T: FourierFloat>(time: &mut [T]) -> Vec<Complex<T>> {
     // To get normalized results, each element must be scaled by 1/sqrt(length).
     // If the processing involves both an FFT and an iFFT step, it is advisable to merge the two normalization steps to a single, by scaling by 1/length.
     // So overall formula for an element is `|x/sqrt(length)|`
-    let scale_factor = 1.0 / (data.len() as f64).sqrt();
-    fft(data).into_iter().map(|v| v * scale_factor).collect()
+    let scale_factor =
+        T::from_f64(1.0 / (time.len() as f64).sqrt()).expect("Can't convert to f64.");
+    real_fft(time)
+        .into_iter()
+        .map(|v| v * scale_factor)
+        .collect()
 }
 
-/// Take unnormalized fft and return magnitudes.
-pub fn fft(mut data: Vec<f64>) -> Vec<f64> {
-    let mut real_planner = RealFftPlanner::<f64>::new();
+/// Take unnormalized fft and return complex values.
+/// Input becomes garbage after this.
+pub fn real_fft<T: FourierFloat>(time: &mut [T]) -> Vec<Complex<T>> {
+    let mut real_planner = RealFftPlanner::<T>::new();
 
     // Create a FFT.
-    let r2c = real_planner.plan_fft_forward(data.len());
-    // Make output vector. `spectrum.len() == length /2 + 1`
+    let r2c = real_planner.plan_fft_forward(time.len());
+    // Make output vector. `spectrum.len() == length / 2 + 1`
     let mut spectrum = r2c.make_output_vec();
 
     // Forward transform the input data
-    r2c.process(&mut data, &mut spectrum).unwrap();
+    r2c.process(time, &mut spectrum).unwrap();
 
     let mut out = Vec::with_capacity(spectrum.len());
-    out.extend(spectrum.iter().map(|v| v.norm()));
+    out.extend(spectrum);
+    out
+}
+
+/// Take normalized ifft and return magnitudes.
+/// Input vector becomes garbage after this.
+/// Keep in mind that this is the dc through positive frequencies up to the Nyquist frequency.
+/// Goes from M frequency values to 2(M-1) time values.
+pub fn scaled_real_ifft<T: FourierFloat>(spectrum: &mut [Complex<T>]) -> Vec<T> {
+    // To get normalized results, each element must be scaled by 1/sqrt(length).
+    // This length refers to the time domain length N and not the frequency domain length N/2+1.
+    // If the processing involves both an FFT and an iFFT step, it is advisable to merge the two normalization steps to a single, by scaling by 1/length.
+    // So overall formula for an element is `|x/sqrt(2*(length-1))|`
+    let scale_factor = 1.0 / (2.0 * (spectrum.len() - 1) as f64).sqrt();
+    let scale_factor = T::from_f64(scale_factor).expect("Can't convert to float type.");
+    real_ifft(spectrum)
+        .into_iter()
+        .map(|v| v * scale_factor)
+        .collect()
+}
+
+/// Take unnormalized ifft and return magnitudes.
+/// Input vector becomes garbage after this.
+/// Keep in mind that this is the dc through positive frequencies up to the Nyquist frequency. Except for the 0th and Nyquist their power is doubled because they represent power of positive and negative frequencies.
+pub fn real_ifft<T: FourierFloat>(spectrum: &mut [Complex<T>]) -> Vec<T> {
+    let mut real_planner = RealFftPlanner::<T>::new();
+
+    // Create a FFT.
+    let c2r = real_planner.plan_fft_inverse(2 * (spectrum.len() - 1));
+    // Make output vector. `2*(spectrum.len() - 1) == length`
+    let mut time = c2r.make_output_vec();
+
+    // Inverse transform the input data
+    c2r.process(spectrum, &mut time).unwrap();
+
+    let mut out = Vec::with_capacity(time.len());
+    out.extend(time.iter());
     out
 }
 

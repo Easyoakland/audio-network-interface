@@ -10,3 +10,4 @@ num-traits = "0.2.15"
 
 [dev-dependencies]
 ordered-float = "3.6.0"
+proptest = "1.1.0"
