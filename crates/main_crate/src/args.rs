@@ -1,9 +1,10 @@
 use clap::{
     builder::{PossibleValuesParser, TypedValueParser as _},
-    Args, Parser, Subcommand,
+    Args, Parser, Subcommand, ValueHint,
 };
 use dsp::specs::{FdmSpec, OfdmSpec};
 use log::Level;
+use std::path::PathBuf;
 
 #[derive(Parser, Clone)]
 #[command(version)]
@@ -52,12 +53,12 @@ pub struct LoggingOpt {
 #[derive(Args, Clone)]
 pub struct FileOpt {
     /// The input file.
-    #[arg(index = 1, required = true)]
-    pub in_file: String,
+    #[arg(index = 1, required = true, value_hint = ValueHint::FilePath)]
+    pub in_file: PathBuf,
 
     /// The output file.
-    #[arg(short, long)]
-    pub out_file: String,
+    #[arg(short, long, value_hint = ValueHint::FilePath)]
+    pub out_file: PathBuf,
 }
 
 #[derive(Args, Clone)]

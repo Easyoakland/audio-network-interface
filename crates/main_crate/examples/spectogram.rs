@@ -3,7 +3,6 @@
 
 use audio_network_interface::{args::BaseCli, file_io::read_wav};
 use clap::Parser as _;
-use std::path::Path;
 use stft::{fft::window_fn, SpecCompute, WindowLength};
 
 fn main() -> Result<(), anyhow::Error> {
@@ -12,7 +11,7 @@ fn main() -> Result<(), anyhow::Error> {
     simple_logger::init_with_level(opt.log_opt.log_level).unwrap();
 
     // Read in wav file.
-    let (spec, data) = read_wav(&Path::new(&opt.file_opt.in_file));
+    let (spec, data) = read_wav(&opt.file_opt.in_file);
 
     // Bin width is `Fs/N` where `Fs` is sampling frequency and `N` is samples.
     let window_len = WindowLength::from_samples(2usize.pow(11));

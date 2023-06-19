@@ -7,7 +7,6 @@ use audio_network_interface::{
     plotting::plot_series,
 };
 use clap::Parser as _;
-use std::{ffi::OsString, path::Path};
 use stft::{fft::window_fn, SpecCompute, WindowLength};
 
 fn main() -> Result<(), anyhow::Error> {
@@ -18,7 +17,7 @@ fn main() -> Result<(), anyhow::Error> {
     match opt.transmission_spec {
         TransmissionSpec::Fdm(fdm_spec) => {
             // Read in wav file.
-            let (spec, data) = read_wav(&Path::new(&opt.base.file_opt.in_file));
+            let (spec, data) = read_wav(&opt.base.file_opt.in_file);
 
             // Set window parameters so each symbol is one sample.
             let window_len = WindowLength::from_duration(
@@ -40,12 +39,9 @@ fn main() -> Result<(), anyhow::Error> {
 
                 // Rename input file, change to .png, and append `_out` to basename.
                 let file_out = {
-                    let parent = Path::new(&opt.base.file_opt.in_file).parent().unwrap();
-                    let mut temp = Path::new(&opt.base.file_opt.in_file)
-                        .file_stem()
-                        .unwrap()
-                        .to_owned();
-                    temp.push(OsString::from(format!("_time_vs_channel_{f}.png")));
+                    let parent = opt.base.file_opt.in_file.parent().unwrap();
+                    let mut temp = opt.base.file_opt.in_file.file_stem().unwrap().to_owned();
+                    temp.push(format!("_time_vs_channel_{f}.png"));
                     parent.join(temp)
                 };
 

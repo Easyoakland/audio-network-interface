@@ -1,12 +1,12 @@
 use log::info;
 use num_traits::Zero;
 use plotters::prelude::*;
+use std::path::Path;
 use stft::Stft;
 
 /// Plot a dtft analysis with proper scaling and labeling especially for the x axis frequency.
 pub fn plot_fft(
-    file_in: &str,
-    file_out: &str,
+    file_out: &Path,
     data: Vec<f64>,
     sample_rate: f32,
     bin_width: f32,
@@ -62,7 +62,7 @@ pub fn plot_fft(
     chart.draw_series(LineSeries::new(series_point_iter, &RED))?;
 
     root.present()?;
-    info!("Successfully saved fft graph of \"{file_in}\" to {file_out}");
+    info!("Successfully saved fft graph of {}", file_out.display());
     Ok(())
 }
 
@@ -134,7 +134,7 @@ pub fn plot_series(
 pub fn plot_spectogram(
     stft: &Stft,
     bin_width: f32,
-    file_out: &str,
+    file_out: &Path,
     title: &str,
     log_plot: bool,
 ) -> anyhow::Result<()> {
@@ -210,7 +210,7 @@ pub fn plot_spectogram(
     }
 
     root.present()?;
-    info!("Successfully saved fft graph of {file_out}");
+    info!("Successfully saved fft graph of {}", file_out.display());
     Ok(())
 }
 

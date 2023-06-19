@@ -1,7 +1,7 @@
 use crate::{args::TransmissionCli, file_io, transmit};
 use anyhow::Context;
 use log::info;
-use std::{io, path::Path};
+use std::io;
 
 /// Transmit from file main logic.
 pub fn transmit_from_file(opt: TransmissionCli) -> anyhow::Result<()> {
@@ -10,8 +10,8 @@ pub fn transmit_from_file(opt: TransmissionCli) -> anyhow::Result<()> {
     simple_logger::init_with_level(opt.base.log_opt.log_level).unwrap();
 
     // Read file bytes.
-    let bytes = file_io::read_file_bytes(Path::new(&opt.base.file_opt.in_file))
-        .with_context(|| format!("Opening {}", opt.base.file_opt.in_file))?
+    let bytes = file_io::read_file_bytes(&opt.base.file_opt.in_file)
+        .with_context(|| format!("Opening {}", opt.base.file_opt.in_file.display()))?
         .collect::<Result<Vec<u8>, io::Error>>()
         .context("Reading bytes from file.")?
         .into_iter();
@@ -30,7 +30,7 @@ pub fn receive_from_file(opt: TransmissionCli) -> anyhow::Result<()> {
     simple_logger::init_with_level(opt.base.log_opt.log_level).unwrap();
 
     // Read in wav file.
-    let (spec, data) = file_io::read_wav(Path::new(&opt.base.file_opt.in_file));
+    let (spec, data) = file_io::read_wav(&opt.base.file_opt.in_file);
 
     // Decode the file's sound transmission.
     let bytes = transmit::decode_transmission(
@@ -42,10 +42,13 @@ pub fn receive_from_file(opt: TransmissionCli) -> anyhow::Result<()> {
     )?;
 
     // Write the decoded byte vector to a file.
-    let out_path = Path::new(&opt.base.file_opt.out_file);
+    let out_path = &opt.base.file_opt.out_file;
     file_io::write_file_bytes(out_path, &bytes)
         .with_context(|| format!("Writing to file {:?}.", out_path))?;
-    info!("Saved decoded file to {}", opt.base.file_opt.out_file);
+    info!(
+        "Saved decoded file to {}",
+        opt.base.file_opt.out_file.display()
+    );
 
     Ok(())
 }

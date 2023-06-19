@@ -5,7 +5,6 @@
 use audio_network_interface::{args::BaseCli, file_io::read_file_bytes};
 use clap::Parser as _;
 use fixedbitset::FixedBitSet;
-use std::path::Path;
 
 fn main() -> Result<(), anyhow::Error> {
     // Handle commandline arguments.
@@ -13,8 +12,8 @@ fn main() -> Result<(), anyhow::Error> {
     simple_logger::init_with_level(opt.log_opt.log_level).unwrap();
 
     // Read in files.
-    let input = read_file_bytes(Path::new(&opt.file_opt.in_file))?;
-    let output = read_file_bytes(Path::new(&opt.file_opt.out_file))?;
+    let input = read_file_bytes(&opt.file_opt.in_file)?;
+    let output = read_file_bytes(&opt.file_opt.out_file)?;
 
     // Count number of times each bit is different.
     let mut errors = [0u32; 8];
