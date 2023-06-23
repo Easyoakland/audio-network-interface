@@ -4,6 +4,15 @@ This project was created primarily for me to learn and understand the concepts o
 
 If you are looking for a mature digital signal processing library take a look at [liquid-dsp](https://github.com/jgaeddert/liquid-dsp) or [quiet](https://github.com/quiet/quiet) instead.
 
+# Usage
+`cargo run --release --bin transceiver_cli -- <OPTIONS>`
+
+or
+
+`cargo run --release --bin transceiver_gui -F gui`
+
+The cli has help information if `-h` or `--help` or `help` are used as options.
+
 # Goals/Roadmap
 - [ ] Physical layer
     - [x] On Off Keyed (OOK) Frequency division multiplexing (FDM).
