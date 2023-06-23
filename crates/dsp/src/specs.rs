@@ -1,4 +1,12 @@
-use clap::Args;
+use clap::{Args, Subcommand};
+
+/// The spec for a transmission.
+// TODO Include things like realtime_vs_file
+#[derive(Clone, Debug, Subcommand)]
+pub enum TransmissionSpec {
+    Ofdm(OfdmSpec),
+    Fdm(FdmSpec),
+}
 
 #[derive(Args, Clone, Debug)]
 /// Basic frequency division multiplexing.

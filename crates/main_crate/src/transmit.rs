@@ -1,5 +1,5 @@
 use crate::{
-    args::{FecSpec, TransmissionSpec},
+    args::FecSpec,
     constants::{
         FIRST_BIN, REED_SOL_MAX_SHARDS, SENSITIVITY, SHARD_BITS_LEN, SHARD_BYTES_LEN,
         SIMULTANEOUS_BYTES, TIME_SAMPLES_PER_SYMBOL,
@@ -22,7 +22,7 @@ use dsp::{
         OfdmFramesDecoder, OfdmFramesEncoder, SubcarrierDecoder, SubcarrierEncoder,
     },
     ook_fdm::{OokFdmConfig, OokFdmDecoder},
-    specs::FdmSpec,
+    specs::{FdmSpec, TransmissionSpec},
 };
 use dyn_clone::{clone_trait_object, DynClone};
 use fec::{

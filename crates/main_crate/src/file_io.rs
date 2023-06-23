@@ -1,3 +1,4 @@
+use anyhow::Context;
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
 use std::{
     fs::File,
@@ -21,10 +22,9 @@ pub fn write_file_bytes(file: &Path, data: &[u8]) -> anyhow::Result<()> {
 }
 
 /// Read data from a wav file.
-pub fn read_wav(file: &Path) -> (WavSpec, Vec<f64>) {
+pub fn read_wav(file: &Path) -> anyhow::Result<(WavSpec, Vec<f64>)> {
     // The WAV file to decode.
-    let mut reader =
-        WavReader::open(file).unwrap_or_else(|err| panic!("Invalid wav file {file:?}: {err}."));
+    let mut reader = WavReader::open(file).context("Invalid wav file")?;
     let spec = reader.spec();
     log::trace!("Spec: {:?}", reader.spec());
     // Select correct format representation.
@@ -40,7 +40,7 @@ pub fn read_wav(file: &Path) -> (WavSpec, Vec<f64>) {
             .map(|x| x.unwrap_or_else(|err| panic!("Error reading sample: {err}")) as f64)
             .collect(),
     };
-    (spec, data)
+    Ok((spec, data))
 }
 
 /// Write data to wav file.

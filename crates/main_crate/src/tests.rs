@@ -1,8 +1,8 @@
 use crate::{
-    args::{FecSpec, TransmissionSpec},
+    args::FecSpec,
     transmit::{decode_transmission, encode_transmission, DecodingError},
 };
-use dsp::specs::{FdmSpec, OfdmSpec};
+use dsp::specs::{FdmSpec, OfdmSpec, TransmissionSpec};
 use log::trace;
 use proptest::{prelude::ProptestConfig, proptest};
 use rand_distr::{Distribution, Normal};

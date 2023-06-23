@@ -22,17 +22,10 @@ required-features = ["plot"]
 name = "comparison"
 
 [[bin]]
-name = "transmitter_cli"
+name = "transceiver_cli"
 
 [[bin]]
-name = "receiver_cli"
-
-[[bin]]
-name = "transmitter_gui"
-required-features = ["gui"]
-
-[[bin]]
-name = "receiver_gui"
+name = "transceiver_gui"
 required-features = ["gui"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

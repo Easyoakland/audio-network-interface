@@ -5,6 +5,6 @@ use klask::Settings;
 
 fn main() {
     klask::run_derived_native(Settings::default(), |opt| {
-        binary_logic::transmit_from_file(opt).unwrap();
+        binary_logic::run(opt).unwrap();
     });
 }
