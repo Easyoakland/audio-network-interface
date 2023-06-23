@@ -435,7 +435,7 @@ dependencies = [
 
 [[package]]
 name = "audio_network_interface"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "bitvec",
@@ -2163,7 +2163,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "klask"
 version = "1.0.0"
-source = "git+https://github.com/Easyoakland/klask#3627117cd53f868fb8962016f182dec21ef34900"
+source = "git+https://github.com/Easyoakland/klask#e9d1233ddce0165dcc177aa91fcfd974b9b2685c"
 dependencies = [
  "cansi",
  "clap 4.3.5",

@@ -1,7 +1,11 @@
 [package]
 name = "audio_network_interface"
-version = "0.1.0"
+version = "0.2.0"
+authors = ["Easyoakland <97992568+Easyoakland@users.noreply.github.com>"]
 edition = "2021"
+license = "MPL-2.0"
+description = "Transmit data over audio."
+repository = "https://github.com/Easyoakland/audio-network-interface"
 
 [[example]]
 name = "record_wav"
