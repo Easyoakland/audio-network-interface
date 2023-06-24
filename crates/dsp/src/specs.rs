@@ -1,4 +1,4 @@
-use clap::{Args, Subcommand};
+use clap::{builder::RangedU64ValueParser, Args, Subcommand};
 
 /// The spec for a transmission.
 // TODO Include things like realtime_vs_file
@@ -55,4 +55,9 @@ pub struct OfdmSpec {
     /// The number of data symbols in a frame.
     #[arg(short, long, default_value_t = 32)]
     pub data_symbols: usize,
+
+    /// First subcarrier frequency bin index.
+    /// Can't be 0 because dc bin can't tranmit data.
+    #[arg(short, long, default_value_t = 20, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
+    pub first_bin: usize,
 }

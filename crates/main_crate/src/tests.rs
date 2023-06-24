@@ -13,7 +13,7 @@ static INIT_LOGGING: std::sync::Once = std::sync::Once::new();
 // Additive White Gaussian Noise (AWGN)
 static NORMAL: OnceLock<Normal<f32>> = std::sync::OnceLock::new();
 
-const FEC_SPEC: FecSpec = FecSpec { parity_shards: 5 };
+const FEC_DEFAULT_SPEC: FecSpec = FecSpec { parity_shards: 5 };
 const OFDM_DEFAULT_TRANSMISSION_SPEC: TransmissionSpec = TransmissionSpec::Ofdm(OfdmSpec {
     seed: 0,
     short_training_repetitions: 10,
@@ -21,6 +21,7 @@ const OFDM_DEFAULT_TRANSMISSION_SPEC: TransmissionSpec = TransmissionSpec::Ofdm(
     cyclic_prefix_len: 480,
     cross_correlation_threshold: 0.125,
     data_symbols: 32,
+    first_bin: 20,
 });
 
 // TODO use:
@@ -88,7 +89,7 @@ proptest! {
             start_freq,
             parallel_channels
         };
-        encode_transmission(FEC_SPEC, TransmissionSpec::Fdm(fdm_spec), 0..=255, |x| {
+        encode_transmission(FEC_DEFAULT_SPEC, TransmissionSpec::Fdm(fdm_spec), 0..=255, |x| {
             drop(x);
             Ok::<_, io::Error>(()) // error doesn't matter for this test. picked randomly.
         }).unwrap();
@@ -96,31 +97,36 @@ proptest! {
 
     #[test]
     fn simulated_transmit_receive_ofdm(length: u8) {
-        simulated_transmit_receive(FEC_SPEC, OFDM_DEFAULT_TRANSMISSION_SPEC, length, 0.0);
+        simulated_transmit_receive(FEC_DEFAULT_SPEC, OFDM_DEFAULT_TRANSMISSION_SPEC, length, 0.0);
     }
 
     #[test]
     #[ignore = "Will fail at some noise level. Random."]
     fn simulated_transmit_receive_noisy_ofdm(length: u8, noise_amplitude in 0.0..=0.5f32) {
         if noise_amplitude.is_finite() {
-            simulated_transmit_receive(FEC_SPEC, OFDM_DEFAULT_TRANSMISSION_SPEC, length, noise_amplitude);
+            simulated_transmit_receive(FEC_DEFAULT_SPEC, OFDM_DEFAULT_TRANSMISSION_SPEC, length, noise_amplitude);
         }
     }
 }
 
 #[test]
 fn simulated_transmit_ofdm() {
-    encode_transmission(FEC_SPEC, OFDM_DEFAULT_TRANSMISSION_SPEC, 0..=255, |x| {
-        drop(x);
-        Ok::<_, io::Error>(()) // error doesn't matter for this test. picked randomly.
-    })
+    encode_transmission(
+        FEC_DEFAULT_SPEC,
+        OFDM_DEFAULT_TRANSMISSION_SPEC,
+        0..=255,
+        |x| {
+            drop(x);
+            Ok::<_, io::Error>(()) // error doesn't matter for this test. picked randomly.
+        },
+    )
     .unwrap();
 }
 
 #[test]
 fn simulated_fail_to_find_decode_ofdm() {
     match decode_transmission(
-        FEC_SPEC,
+        FEC_DEFAULT_SPEC,
         OFDM_DEFAULT_TRANSMISSION_SPEC,
         (0..=255i16).map(f32::from).cycle().take(4800),
         0,

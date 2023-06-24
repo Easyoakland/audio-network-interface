@@ -1,8 +1,8 @@
 use crate::{
     args::FecSpec,
     constants::{
-        FIRST_BIN, REED_SOL_MAX_SHARDS, SENSITIVITY, SHARD_BITS_LEN, SHARD_BYTES_LEN,
-        SIMULTANEOUS_BYTES, TIME_SAMPLES_PER_SYMBOL,
+        REED_SOL_MAX_SHARDS, SENSITIVITY, SHARD_BITS_LEN, SHARD_BYTES_LEN, SIMULTANEOUS_BYTES,
+        TIME_SAMPLES_PER_SYMBOL,
     },
     transmit,
 };
@@ -270,22 +270,23 @@ where
             .sample_rate()
             .0;
 
-        // Create `encoded_signal`
-        let subcarriers_encoders = Box::leak(Box::new(
-            [SubcarrierEncoder::T0(null_encode);
-                time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
-        ));
-        let active_bins = FIRST_BIN..(FIRST_BIN + 8 * SIMULTANEOUS_BYTES);
-        for i in active_bins {
-            subcarriers_encoders[i] = SubcarrierEncoder::T1(bpsk_encode);
-        }
-
         // Encode appropriately.
         let encoded_signal: Box<dyn DynCloneIterator<f32>> = match transmission_spec {
             TransmissionSpec::Fdm(fdm) => {
                 Box::new(transmit::encode_fdm(fdm, sample_rate as f32, bits))
             }
             TransmissionSpec::Ofdm(ofdm_spec) => {
+                // Create subcarrier encoding layout.
+                let subcarriers_encoders = Box::leak(Box::new(
+                    [SubcarrierEncoder::T0(null_encode);
+                        time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
+                ));
+                let active_bins =
+                    ofdm_spec.first_bin..(ofdm_spec.first_bin + 8 * SIMULTANEOUS_BYTES);
+                for i in active_bins {
+                    subcarriers_encoders[i] = SubcarrierEncoder::T1(bpsk_encode);
+                }
+                // Use the encoding layout to actually create the frames with samples.
                 let frames = OfdmFramesEncoder::new(bits, subcarriers_encoders, ofdm_spec);
                 trace!("Encoded {} frames.", frames.clone().count());
                 Box::new(frames.flatten())
@@ -357,7 +358,7 @@ pub fn decode_transmission(
                 [SubcarrierDecoder::Data(null_decode);
                     time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
             ));
-            let active_bins = FIRST_BIN..(FIRST_BIN + 8 * SIMULTANEOUS_BYTES);
+            let active_bins = ofdm_spec.first_bin..(ofdm_spec.first_bin + 8 * SIMULTANEOUS_BYTES);
             for i in active_bins {
                 subcarriers_decoders[i] = SubcarrierDecoder::Data(bpsk_decode);
             }
