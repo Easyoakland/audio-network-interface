@@ -13,20 +13,15 @@ pub struct ParityEncoder {
 
 impl ParityEncoder {
     /// Generates a parity check bit for every `data_block_size` block of bits.
+    #[must_use]
     pub fn generate_parity<T: BitStore, O: BitOrder>(&self, data: &BitSlice<T, O>) -> BitVec<T, O> {
         let mut parity = BitVec::with_capacity(data.len() / self.data_block_size);
         for block in data.chunks(self.data_block_size) {
             // Make block even.
-            if block
-                .into_iter()
-                .map(|x| if *x { 1 } else { 0 })
-                .sum::<u8>()
-                % 2
-                == 0
-            {
-                parity.push(false)
+            if block.into_iter().map(|x| u8::from(*x)).sum::<u8>() % 2 == 0 {
+                parity.push(false);
             } else {
-                parity.push(true)
+                parity.push(true);
             };
         }
         parity
@@ -71,6 +66,7 @@ pub struct ParityDecoder {
 impl ParityDecoder {
     /// Compares parity bits to parity bits expected from data.
     /// Returns a bitvector with ones at each invalid block.
+    #[must_use]
     pub fn validate_parity<T: BitStore, O: BitOrder>(
         &self,
         data: &BitSlice<T, O>,
@@ -80,13 +76,7 @@ impl ParityDecoder {
         for (block_idx, block) in data.chunks(self.data_block_size).enumerate() {
             // Check block even.
             // Mark invalid blocks with true (1). Valid blocks with false (0).
-            if block
-                .into_iter()
-                .map(|x| if *x { 1 } else { 0 })
-                .sum::<u8>()
-                % 2
-                == 0
-            {
+            if block.into_iter().map(|x| u8::from(*x)).sum::<u8>() % 2 == 0 {
                 validated.push(parity[block_idx]);
             } else {
                 validated.push(!parity[block_idx]);
@@ -96,7 +86,7 @@ impl ParityDecoder {
     }
 
     /// De-interleave parity bits into separate (data, parity).
-    #[must_use = "Doesn't affect inputs."]
+    #[must_use]
     pub fn deinterleave<T: BitStore, O: BitOrder>(
         &self,
         interleaved: &BitSlice<T, O>,
@@ -114,6 +104,7 @@ impl ParityDecoder {
 
         (data, parity)
     }
+    #[must_use]
     pub fn decode(&self, input: BitStream) -> Vec<Option<Vec<u8>>> {
         let (data, parity) = self.deinterleave(&input);
         let parity_errors = self.validate_parity(&data, &parity);
@@ -133,7 +124,7 @@ impl ParityDecoder {
             .collect::<Vec<_>>();
         log::trace!(
             "{}/{} failed parity checks at indices: {:?}",
-            out.clone().into_iter().filter(|x| x.is_none()).count(),
+            out.clone().into_iter().filter(Option::is_none).count(),
             out.len(),
             out.clone()
                 .into_iter()

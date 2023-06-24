@@ -4,18 +4,21 @@ use stft::fft::FourierFloat;
 
 /// Always returns a complex zero.
 #[inline]
+#[must_use]
 pub fn null_encode<T: FourierFloat>(_: [bool; 0]) -> Complex<T> {
     Complex::zero()
 }
 
 /// Always returns no bits
 #[inline]
+#[must_use]
 pub fn null_decode<T: FourierFloat>(_: Complex<T>) -> Vec<bool> {
     vec![]
 }
 
 /// On off keying takes 1 bit and converts it to a real value.
 /// This function converts a bit into a real valued complex number.
+#[must_use]
 pub fn ook_encode<T: FourierFloat>(bit: [bool; 1]) -> Complex<T> {
     // Send either real value 1 or zero depending on bit.
     match bit[0] {
@@ -29,6 +32,7 @@ pub fn ook_encode<T: FourierFloat>(bit: [bool; 1]) -> Complex<T> {
 
 /// On off keying takes 1 bit and converts it to a real value.
 /// This function converts that real valued complex number back into a bit.
+#[must_use]
 pub fn ook_decode<T: FourierFloat>(complex: Complex<T>) -> Vec<bool> {
     let dist_from_1 = (complex
         - Complex {
@@ -47,6 +51,7 @@ pub fn ook_decode<T: FourierFloat>(complex: Complex<T>) -> Vec<bool> {
 }
 
 /// Binary phase modulation encoding. Sends constant magnitude and varies phase between 0 and pi.
+#[must_use]
 pub fn bpsk_encode<T: FourierFloat>(bit: [bool; 1]) -> Complex<T> {
     match bit[0] {
         true => Complex {
@@ -61,6 +66,7 @@ pub fn bpsk_encode<T: FourierFloat>(bit: [bool; 1]) -> Complex<T> {
 }
 
 /// Binary phase modulation decoding. Decodes each value depending on if it is closer to 1.0 or -1.0
+#[must_use]
 pub fn bpsk_decode<T: FourierFloat>(complex: Complex<T>) -> Vec<bool> {
     let dist_from_0 = (complex
         - Complex {

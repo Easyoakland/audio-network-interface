@@ -2,6 +2,7 @@ use bitvec::{field::BitField, vec::BitVec};
 use nalgebra::SMatrix;
 
 /// Encodes data with hamming74
+#[must_use]
 pub fn hamming74_encode(data: BitVec) -> BitVec {
     #[rustfmt::skip]
         let gt = SMatrix::<u8, 7, 4>::from_row_slice(&[
@@ -13,7 +14,7 @@ pub fn hamming74_encode(data: BitVec) -> BitVec {
             0,0,1,0,
             0,0,0,1,
         ]);
-    let data = data.iter().by_vals().map(|b| if b { 1 } else { 0 });
+    let data = data.iter().by_vals().map(u8::from);
     let data_block = SMatrix::<_, 4, 1>::from_iterator(data.take(4));
     let codeword = {
         let mut codeword = gt * data_block;
@@ -31,7 +32,7 @@ fn hamming74_parity_check(data: BitVec) -> BitVec {
             0,1,1,0,0,1,1,
             0,0,0,1,1,1,1,
         ]);
-    let data = data.iter().by_vals().map(|b| if b { 1 } else { 0 });
+    let data = data.iter().by_vals().map(u8::from);
     let data_block = SMatrix::<u8, 7, 1>::from_iterator(data.take(8));
     let codeword = h * data_block;
     codeword.iter().map(|x| x % 2 != 0).collect()
@@ -49,6 +50,7 @@ fn hamming74_fix(mut data: BitVec) -> BitVec {
 }
 
 /// Decodes a hamming74 encoded message.
+#[must_use]
 pub fn hamming74_decode(data: BitVec) -> BitVec {
     let data = hamming74_fix(data);
     #[rustfmt::skip]
@@ -58,7 +60,7 @@ pub fn hamming74_decode(data: BitVec) -> BitVec {
             0,0,0,0,0,1,0,
             0,0,0,0,0,0,1,
         ]);
-    let data = data.iter().by_vals().map(|b| if b { 1 } else { 0 });
+    let data = data.iter().by_vals().map(u8::from);
     let data_block = SMatrix::<u8, 7, 1>::from_iterator(data.take(8));
     let codeword = r * data_block;
     codeword.iter().map(|x| x % 2 != 0).collect()

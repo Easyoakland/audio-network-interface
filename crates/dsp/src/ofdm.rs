@@ -350,7 +350,9 @@ impl<'a, I: Iterator<Item = D>, D: FourierFloat, const CHANNELS_NUM: usize>
     pub fn decode<T: bitvec::store::BitStore, O: bitvec::order::BitOrder>(
         decoder: Self,
     ) -> BitVec<T, O> {
-        let mut decoded_bits = BitVec::<T, O>::from_iter(decoder.flatten())
+        let mut decoded_bits = decoder
+            .flatten()
+            .collect::<BitVec<T, O>>()
             .into_iter()
             .rev()
             .skip_while(|x| !x) // skip 0's
@@ -384,11 +386,12 @@ fn ofdm_short_training_symbol<T: FourierFloat>(
                     (i, Complex { re: val, im: val })
                 }
             })
+            // Only include frequencies that repeat the specified number of times.
             .map(|(i, x)| {
-                if i % repeat_cnt != 0 {
-                    Complex::zero()
-                } else {
+                if i % repeat_cnt == 0 {
                     x
+                } else {
+                    Complex::zero()
                 }
             })
             .collect::<Vec<_>>(),
@@ -499,7 +502,7 @@ pub fn ofdm_premable_auto_correlation_detector<T: FourierFloat + std::iter::Sum>
             {
                 break;
             } else {
-                highest_timing_metric = Some((idx, timing_metric))
+                highest_timing_metric = Some((idx, timing_metric));
             }
         }
     }
@@ -553,7 +556,7 @@ pub fn ofdm_premable_cross_correlation_detector<T: FourierFloat + std::iter::Sum
 /// use dsp::ofdm::SkipToKnownSignal;
 /// let iter = [1.0, 2.0, 3.0, 4.0, 5.0].into_iter();
 /// let known_signal = &[2.0, 3.0];
-/// let skipped_iter = SkipToKnownSignal::new(iter, Box::new(*known_signal), 0.9);
+/// let skipped_iter = SkipToKnownSignal::new(iter, known_signal, 0.9);
 /// assert_eq!(vec![2.0, 3.0, 4.0, 5.0], skipped_iter.collect::<Vec<_>>());
 /// ```
 #[derive(Debug, Clone)]
@@ -578,11 +581,11 @@ impl<I: Iterator> SkipToKnownSignal<I>
 where
     I::Item: Clone + Zero,
 {
-    pub fn new(iter: I, known_signal: Box<[I::Item]>, threshold: I::Item) -> Self {
+    pub fn new(iter: I, known_signal: &[I::Item], threshold: I::Item) -> Self {
         SkipToKnownSignal {
             iter,
             known_signal: known_signal
-                .into_iter()
+                .iter()
                 .map(|x| Complex {
                     re: x.clone(),
                     im: I::Item::zero(),
@@ -642,10 +645,10 @@ where
         }
 
         // Clear the buffer before consuming new iterator elements.
-        if !self.buffered_values.is_empty() {
-            Some(self.buffered_values.remove(0).re)
-        } else {
+        if self.buffered_values.is_empty() {
             self.iter.next()
+        } else {
+            Some(self.buffered_values.remove(0).re)
         }
     }
 }

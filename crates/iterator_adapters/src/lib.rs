@@ -5,15 +5,14 @@ pub mod order_statistics;
 pub mod remove_preceding;
 pub mod windows;
 
+use chunks::Chunks;
+use num_traits::{cast, NumCast, Zero};
 use std::{
     cmp::PartialEq,
     collections::BinaryHeap,
     iter::{Map, Peekable},
     ops::{Add, Div},
 };
-
-use chunks::Chunks;
-use num_traits::{cast, NumCast, Zero};
 use windows::Windows;
 
 type MappedWindow<I> = Map<Windows<I>, fn(Vec<<I as Iterator>::Item>) -> <I as Iterator>::Item>;
@@ -79,10 +78,10 @@ pub trait IteratorAdapter: Iterator {
     {
         let mut iter = self.peekable();
         while let Some(x) = iter.peek() {
-            if x != &val {
-                break;
-            } else {
+            if x == &val {
                 iter.next();
+            } else {
+                break;
             }
         }
         iter

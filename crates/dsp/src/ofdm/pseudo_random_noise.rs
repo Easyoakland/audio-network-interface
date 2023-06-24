@@ -380,5 +380,5 @@ where
     T: rand::distributions::uniform::SampleUniform + PartialOrd + Clone + 'static,
 {
     let mut rng = Pcg32::seed_from_u64(seed);
-    (0..n).flat_map(move |_| iterator.clone().choose_stable(&mut rng))
+    (0..n).filter_map(move |_| iterator.clone().choose_stable(&mut rng))
 }

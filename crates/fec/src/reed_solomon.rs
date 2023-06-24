@@ -35,7 +35,7 @@ impl ReedSolomonEncoder {
 
         // Add each block of data as a shard.
         let mut shards: Vec<Vec<u8>> = Vec::new();
-        for block in data.chunks(self.block_size).into_iter() {
+        for block in &data.chunks(self.block_size) {
             shards.push(block.collect());
         }
 

@@ -77,7 +77,7 @@ proptest! {
 
     #[test]
     fn simulated_transmit_fdm_test(
-        symbol_time in 1..(u8::MAX as u64),
+        symbol_time in 1..u64::from(u8::MAX),
         bit_width in 1.0..100.0f32,
         start_freq in 0.0..24000f32,
         parallel_channels in 1..100usize,

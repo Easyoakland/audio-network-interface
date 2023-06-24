@@ -13,11 +13,16 @@ use stft::Stft;
 /// All parameters needed for ook fdm modulation.
 #[derive(Debug, Default, Clone)]
 pub struct OokFdmConfig {
-    channel_width: f32,           // Frequency channel width.
-    parallel_channels_num: usize, // Simultaneous frequency channels for transmission.
-    sample_rate: f32,             // Samples per second.
-    start_freq: f32,              // Lower bound of lowest frequency channel.
-    symbol_length: usize,         // The number of samples per symbol.
+    /// Frequency channel width.
+    channel_width: f32,
+    /// Simultaneous frequency channels for transmission.
+    parallel_channels_num: usize,
+    /// Samples per second.
+    sample_rate: f32,
+    /// Lower bound of lowest frequency channel.
+    start_freq: f32,
+    /// The number of samples per symbol.
+    symbol_length: usize,
 }
 
 /// The iterator for the type of the encoded ook fdm modulation. It maintains traits (ex. `Clone`) of the original iterator.
@@ -30,6 +35,7 @@ impl OokFdmConfig {
     /// # Panics
     /// - Max frequency required for encoding must be less than Nyquist Frequency.
     /// The max frequency is determined by simultaneous channels and starting frequency.
+    #[must_use]
     pub fn new(
         channel_width: f32,
         parallel_channels_num: usize,

@@ -43,7 +43,7 @@ where
     T: Sum + Mul + Sum<<T as Mul>::Output> + Clone,
 {
     (0..n.min(f.len()))
-        .flat_map(|m| f.get(m).zip(g.get(n - m)))
+        .filter_map(|m| f.get(m).zip(g.get(n - m)))
         .map(|x| (*x.0).clone() * (*x.1).clone())
         .sum()
 }
@@ -59,7 +59,7 @@ where
     T: Sum + Mul + Sum<<T as Mul>::Output> + Clone + Neg<Output = T> + NumOps + Num,
 {
     (0..N) // note this is exclusive upper bound so it matches formula.
-        .flat_map(move |m| f.get(m).zip(g.get((m + n) % N)))
+        .filter_map(move |m| f.get(m).zip(g.get((m + n) % N)))
         .map(|(f, g)| f.conj() * g)
 }
 
@@ -102,7 +102,7 @@ where
     // and R is the energy (sum m=0 to L-1 of |r[d+m+L]|^2).
     (cross_correlation(f, g, 0, N).norm_sqr())
         / cross_correlation_before_sum(f, g, 0, N) // computes f[i+m] * g[i+m]. If f=g this is norm_sqr
-            .map(|x| x.norm()) // if f and g don't match perfectly then they will still have im component. Use norm to remove. If no im component then this does nothing.
+            .map(Complex::norm) // if f and g don't match perfectly then they will still have im component. Use norm to remove. If no im component then this does nothing.
             .sum::<T>()
             .powi(2)
 }

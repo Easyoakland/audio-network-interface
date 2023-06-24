@@ -11,9 +11,7 @@ where
     I: Iterator,
 {
     pub fn new(iter: I, n: usize) -> Self {
-        if n == 0 {
-            panic!("chunk size must be non-zero")
-        }
+        assert!(n != 0, "chunk size must be non-zero");
         Chunks {
             iter,
             buffer: Vec::new(),
@@ -37,7 +35,7 @@ where
             self.buffer.push(match self.iter.next() {
                 Some(x) => x,
                 None => break,
-            })
+            });
         }
 
         if self.buffer.is_empty() {

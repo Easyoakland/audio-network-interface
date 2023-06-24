@@ -96,22 +96,26 @@ pub mod window_fn {
         }
     }
 
+    #[must_use]
     pub const fn rectangular(_n: usize, _samples: usize) -> WindowFloat {
         1.0
     }
 
+    #[must_use]
     pub fn hamming(n: usize, samples: usize) -> WindowFloat {
         const A0: WindowFloat = 0.53836;
         A0 - (1.0 - A0)
             * WindowFloat::cos((2.0 * PI * n as WindowFloat) / samples as WindowFloat - 1.0)
     }
 
+    #[must_use]
     pub fn hann(n: usize, samples: usize) -> WindowFloat {
         const A0: WindowFloat = 0.5;
         A0 * (1.0
             - WindowFloat::cos((2.0 * PI * n as WindowFloat) / (samples as WindowFloat - 1.0)))
     }
 
+    #[must_use]
     pub fn blackman_harris(n: usize, samples: usize) -> WindowFloat {
         const A0: WindowFloat = 0.35875;
         const A1: WindowFloat = 0.48829;

@@ -32,12 +32,12 @@ pub fn read_wav(file: &Path) -> anyhow::Result<(WavSpec, Vec<f64>)> {
         SampleFormat::Float => reader
             .samples::<f32>()
             .step_by(spec.channels.into()) // Make wav mono for analysis. Ignore all but first channel.
-            .map(|x| x.unwrap_or_else(|err| panic!("Error reading sample: {err}")) as f64)
+            .map(|x| f64::from(x.unwrap_or_else(|err| panic!("Error reading sample: {err}"))))
             .collect(),
         SampleFormat::Int => reader
             .samples::<i32>()
             .step_by(spec.channels.into()) // Make wav mono for analysis. Ignore all but first channel.
-            .map(|x| x.unwrap_or_else(|err| panic!("Error reading sample: {err}")) as f64)
+            .map(|x| f64::from(x.unwrap_or_else(|err| panic!("Error reading sample: {err}"))))
             .collect(),
     };
     Ok((spec, data))

@@ -22,7 +22,9 @@ fn test_signal(mut signal_frequency: f32, sample_rate: f32) {
     let mut data = Vec::new();
     for sample_num in 0..20000 {
         let t = sample_num as f32 / sample_rate;
-        data.push((2.0 * std::f32::consts::PI * signal_frequency * t).sin() as f64);
+        data.push(f64::from(
+            (2.0 * std::f32::consts::PI * signal_frequency * t).sin(),
+        ));
     }
     let bin_width = bin_width_from_time(sample_rate, window_len.samples());
 
@@ -35,7 +37,7 @@ fn test_signal(mut signal_frequency: f32, sample_rate: f32) {
         !frequency_analysis.data.is_empty(),
         "No frequencies in frequency analysis."
     );
-    for transient in frequency_analysis.data.iter() {
+    for transient in &frequency_analysis.data {
         assert!(!transient.is_empty(), "Transient length is 0.");
     }
 
@@ -110,7 +112,9 @@ fn test_signal_for_panics(signal_frequency: f32, sample_rate: f32) {
     let mut data = Vec::new();
     for sample_num in 0..20000 {
         let t = sample_num as f32 / sample_rate;
-        data.push((2.0 * std::f32::consts::PI * signal_frequency * t).sin() as f64);
+        data.push(f64::from(
+            (2.0 * std::f32::consts::PI * signal_frequency * t).sin(),
+        ));
     }
     let bin_width = bin_width_from_time(sample_rate, window_len.samples());
 
@@ -123,7 +127,7 @@ fn test_signal_for_panics(signal_frequency: f32, sample_rate: f32) {
         !frequency_analysis.data.is_empty(),
         "No frequencies in frequency analysis."
     );
-    for transient in frequency_analysis.data.iter() {
+    for transient in &frequency_analysis.data {
         assert!(!transient.is_empty(), "Transient length is 0.");
     }
 
@@ -171,7 +175,9 @@ fn power_freq_eq_time(mut signal_frequency: f32, sample_rate: f32) {
     let mut data = Vec::new();
     for sample_num in 0..20000 {
         let t = sample_num as f32 / sample_rate;
-        data.push((2.0 * std::f32::consts::PI * signal_frequency * t).sin() as f64);
+        data.push(f64::from(
+            (2.0 * std::f32::consts::PI * signal_frequency * t).sin(),
+        ));
     }
 
     // Compute the energy of the time series and the frequency series and compare.

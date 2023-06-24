@@ -106,7 +106,7 @@ where
     Ok(MustUse(stream))
 }
 
-/// Returns a [Stream] that plays sound samples until the returned stream is dropped. If the iterator runs out it plays silence (equilibrium samples) and sends `()` through the [SyncSender].
+/// Returns a [`Stream`] that plays sound samples until the returned stream is dropped. If the iterator runs out it plays silence (equilibrium samples) and sends `()` through the [`SyncSender`].
 pub fn play_stream(
     signal: impl Iterator<Item = f32> + Sync + Send + 'static,
     tx: SyncSender<()>,
@@ -333,7 +333,7 @@ pub fn decode_transmission(
                 sample_rate,
             );
             let spec_compute = SpecCompute::new(
-                source.map(|x| x as f64).collect(),
+                source.map(f64::from).collect(),
                 window_len,
                 window_len,
                 window_fn::hann,
@@ -412,23 +412,21 @@ pub fn decode_transmission(
         .into_iter()
         .chunks(REED_SOL_MAX_SHARDS) // decode each chunk
         .enumerate()
-        .map(|(i, x)| {
+        .flat_map(|(i, x)| {
             let temp = reed_decoder.map(x.clone()); // with reed solomon
             match temp {
                 Ok(x) => x,
                 Err(e) => {
                     warn!("Reed solomon decoding failed on block {i}: {e}");
                     x.into_iter()
-                        .map(|shard| match shard {
+                        .flat_map(|shard| match shard {
                             Some(x) => x,                     // using correct values
                             None => vec![0; SHARD_BYTES_LEN], // and replacing values that couldn't be corrected with null (0 byte) for the number of missing values
                         })
-                        .flatten()
                         .collect()
                 }
             }
         })
-        .flatten()
         .collect();
     Ok(bytes)
 }

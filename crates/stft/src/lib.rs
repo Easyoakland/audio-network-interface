@@ -14,15 +14,17 @@ pub struct WindowLength {
 }
 
 impl WindowLength {
-    /// Creates a window length from a number of samples
+    /// [`WindowLength`] constructor.
+    #[must_use]
     pub fn from_samples(sample_num: usize) -> Self {
         WindowLength { sample_num }
     }
 
-    /// Creates window from a time and sample_rate.
+    /// [`WindowLength`] constructor.
     /// # Arguments
     /// - `duration`: Length of the window in time.
     /// - `sample_rate`: Samples per second.
+    #[must_use]
     pub fn from_duration(duration: Duration, sample_rate: f32) -> Self {
         // secs * samples/sec = samples
         WindowLength {
@@ -31,6 +33,7 @@ impl WindowLength {
     }
 
     /// Getter for samples
+    #[must_use]
     pub fn samples(&self) -> usize {
         self.sample_num
     }
@@ -38,19 +41,22 @@ impl WindowLength {
     /// Converts samples to duration. Samples / (samples/sec)= secs
     /// # Arguments
     /// - `sample_rate`: the samples per second.
+    #[must_use]
     pub fn duration(&self, sample_rate: f32) -> Duration {
         Duration::from_secs_f32(self.sample_num as f32 / sample_rate)
     }
 }
 
-/// window*(time_samples/window)*(1/(time_sample/sec)) = sec
+/// `window*(time_samples/window)*(1/(time_sample/sec)) = sec`
 /// TODO add test
+#[must_use]
 pub fn window_to_time(window_step: usize, window_idx: usize, sample_rate: f32) -> f32 {
     window_idx as f32 * window_step as f32 * (1.0 / sample_rate)
 }
 
-/// sec*(time_sample/sec)*(1/(time_samples/window)) = window
+/// `sec*(time_sample/sec)*(1/(time_samples/window)) = window`
 /// TODO add test
+#[must_use]
 pub fn time_to_window(sample_rate: f32, time: f32, window_step: usize) -> f32 {
     time * sample_rate * (1.0 / window_step as f32)
 }
@@ -73,6 +79,7 @@ pub struct Stft {
 
 impl Stft {
     /// Get the transient analysis for the frequency bin that contains the indicated frequency if it exists.
+    #[must_use]
     pub fn get_bin(&self, frequency: f32, sample_rate: f32) -> Option<&Vec<f64>> {
         self.data
             .get((frequency / bin_width_from_freq(sample_rate, self.data.len())).trunc() as usize)
@@ -80,7 +87,10 @@ impl Stft {
 
     /// Get the frequency bins for a time closest from below.
     /// TODO add test
+    #[must_use]
     pub fn get_time(&self, sample_rate: f32, time: f32, window_step: usize) -> Option<Vec<f64>> {
+        assert!(sample_rate > 0., "sample rate should be a positive value");
+        assert!(time >= 0., "time should be a positive value");
         let window = time_to_window(sample_rate, time, window_step) as usize;
         self.data[0].get(window)?; // Check validity before iteration.
         Some(
@@ -91,16 +101,19 @@ impl Stft {
     }
 
     /// Number of frequency bins.
+    #[must_use]
     pub fn bin_cnt(&self) -> usize {
         self.data.len()
     }
 
     /// Number of windows of time.
+    #[must_use]
     pub fn window_cnt(&self) -> usize {
         self.data[0].len()
     }
 
     /// Calculates the power of the signal per time.
+    #[must_use]
     pub fn power(&self) -> Vec<f64> {
         let mut power_transient = Vec::with_capacity(self.data[0].len());
         for time in 0..self.data[0].len() {
@@ -127,7 +140,7 @@ impl Stft {
         (0..self.data.len()).map(|bin| self.data[bin].clone())
     }
 
-    /// Each window_length's bins from the first window at t=0 to the last window.
+    /// Each `window_length`'s bins from the first window at t=0 to the last window.
     pub fn times(&self) -> impl Iterator<Item = Vec<f64>> + '_ {
         (0..self.data[0].len()).map(|time| // For each window
                 (0..self.data.len()).map(|f| // Collect all frequency bins
@@ -137,12 +150,14 @@ impl Stft {
 
 /// Calculates bin width of a dtft from the number of time samples.
 /// Bin width is `Fs/N` where `Fs` is sampling frequency and `N` is samples.
+#[must_use]
 pub fn bin_width_from_time(sample_rate: f32, sample_cnt: usize) -> f32 {
     sample_rate / sample_cnt as f32
 }
 
 /// Calculates bin width of a dtft from the number of frequencies.
 /// Bin width is `Max_Frequency / number of frequencies`
+#[must_use]
 pub fn bin_width_from_freq(sample_rate: f32, sample_num: usize) -> f32 {
     let max_freq = sample_rate / 2.0;
     max_freq / sample_num as f32
@@ -150,12 +165,14 @@ pub fn bin_width_from_freq(sample_rate: f32, sample_num: usize) -> f32 {
 
 /// Converts a number of frequency samples to time samples.
 /// N samples to 2(N-1) samples.
+#[must_use]
 pub const fn frequency_samples_to_time(freq_samples: usize) -> usize {
     2 * (freq_samples - 1)
 }
 
 /// Converts a number of time samples to frequency samples.
 /// N samples to (N/2)+1 samples.
+#[must_use]
 pub const fn time_samples_to_frequency(time_samples: usize) -> usize {
     (time_samples / 2) + 1
 }
@@ -181,12 +198,14 @@ impl SpecCompute {
     }
 
     /// Calculates the power of the signal per time.
+    #[must_use]
     pub fn power(&self) -> Vec<f64> {
         self.data.iter().map(|x| x * x).collect()
     }
 
     /// Returns the time varying frequency analysis of frequencies.
     /// Outer vec is each frequency. Inner vec is each value per window step.
+    #[must_use]
     pub fn stft(&self) -> Stft {
         // Given 2n time samples get n+1 frequency samples.
         let mut result = vec![vec![]; self.window_len.samples() / 2 + 1];
@@ -216,6 +235,7 @@ impl SpecCompute {
     }
 
     /// Getter for time data
+    #[must_use]
     pub fn data(&self) -> &Vec<f64> {
         &self.data
     }
@@ -223,6 +243,7 @@ impl SpecCompute {
 
 impl Stft {
     /// Getter for frequency analysis data.
+    #[must_use]
     pub fn data(&self) -> &Vec<Vec<f64>> {
         &self.data
     }

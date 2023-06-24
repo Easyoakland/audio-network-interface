@@ -56,7 +56,7 @@ pub fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
     // Write the decoded byte vector to a file.
     let out_path = &opt.out_file.out_file;
     file_io::write_file_bytes(out_path, &bytes)
-        .with_context(|| format!("Writing to file {:?}.", out_path))?;
+        .with_context(|| format!("Writing to file {}.", out_path.display()))?;
     info!("Saved decoded file to {}", opt.out_file.out_file.display());
 
     Ok(())

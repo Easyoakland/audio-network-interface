@@ -12,9 +12,7 @@ where
     I: Iterator,
 {
     pub fn new(iter: I, n: usize) -> Self {
-        if n == 0 {
-            panic!("window size must be non-zero")
-        }
+        assert!(n != 0, "window size must be non-zero");
         Windows {
             iter,
             buffer: Vec::new(),
@@ -35,9 +33,9 @@ where
         // Initialize buffer on first iteration or return none if not enough items.
         if self.first {
             for _ in 0..self.buffer_len {
-                self.buffer.push(self.iter.next()?)
+                self.buffer.push(self.iter.next()?);
             }
-            self.first = false
+            self.first = false;
         } else {
             // Use the next item to replace the oldest item.
             self.buffer.remove(0);
