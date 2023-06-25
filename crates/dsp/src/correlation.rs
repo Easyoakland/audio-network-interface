@@ -74,15 +74,15 @@ where
 }
 
 /// Iterator over each value that will be summed to compute cross correlation.
-fn cross_correlation_before_sum<'a, T, T2>(
-    f: &'a [T2],
-    g: &'a [T2],
+fn cross_correlation_before_sum<'a, V, U>(
+    f: &'a [V],
+    g: &'a [V],
     n: usize,
     #[allow(non_snake_case)] N: usize,
-) -> impl Iterator<Item = Complex<T>> + 'a
+) -> impl Iterator<Item = Complex<U>> + 'a
 where
-    T2: AsComplex<T> + Clone,
-    T: Clone + Neg<Output = T> + Num,
+    V: AsComplex<U> + Clone,
+    U: Clone + Neg<Output = U> + Num,
 {
     (0..N) // note this is exclusive upper bound so it matches formula.
         .filter_map(move |m| f.get(m).zip(g.get((m + n) % N)))
@@ -93,15 +93,15 @@ where
 /// <https://en.wikipedia.org/wiki/Cross-correlation>
 ///
 /// A high correlation at n indicates that a feature at f\[m\] appears at g\[n+m\].
-pub fn cross_correlation<T, T2>(
-    f: &[T2],
-    g: &[T2],
+pub fn cross_correlation<U, V>(
+    f: &[U],
+    g: &[U],
     n: usize,
     #[allow(non_snake_case)] N: usize,
-) -> Complex<T>
+) -> Complex<V>
 where
-    T2: AsComplex<T> + Clone,
-    T: Clone + Neg<Output = T> + Num + Sum,
+    U: AsComplex<V> + Clone,
+    V: Clone + Neg<Output = V> + Num + Sum,
 {
     cross_correlation_before_sum(f, g, n, N).sum()
 }
@@ -116,14 +116,14 @@ where
 /// - `f`: First series.
 /// - `g`: Second series.
 /// - `N`: The length of the correlation window.
-pub fn cross_correlation_timing_metric_single_value<'a, T, T2>(
-    f: &'a [T2],
-    g: &'a [T2],
+pub fn cross_correlation_timing_metric_single_value<'a, U, V>(
+    f: &'a [U],
+    g: &'a [U],
     #[allow(non_snake_case)] N: usize,
-) -> T
+) -> V
 where
-    T2: AsComplex<T> + Clone,
-    T: Clone + Neg<Output = T> + Num + Sum + Float,
+    U: AsComplex<V> + Clone,
+    V: Clone + Neg<Output = V> + Num + Sum + Float,
 {
     // The actual formula is |P|^2 / R^2.
     // Where P is the "sum of the pairs of products" (sum m=0 to L-1 of r[d+m].conj * r[d+m+L])
@@ -131,7 +131,7 @@ where
     (cross_correlation(f, g, 0, N).norm_sqr())
         / cross_correlation_before_sum(f, g, 0, N) // computes f[i+m] * g[i+m]. If f=g this is norm_sqr
             .map(Complex::norm) // if f and g don't match perfectly then they will still have im component. Use norm to remove. If no im component then this does nothing.
-            .sum::<T>()
+            .sum::<V>()
             .powi(2)
 }
 
@@ -145,14 +145,14 @@ where
 /// - `f`: First series.
 /// - `g`: Second series.
 /// - `N`: The length of the correlation window.
-pub fn cross_correlation_timing_metric<'a, T, T2>(
-    f: &'a [T2],
-    g: &'a [T2],
+pub fn cross_correlation_timing_metric<'a, U, V>(
+    f: &'a [U],
+    g: &'a [U],
     #[allow(non_snake_case)] N: usize,
-) -> impl Iterator<Item = T> + 'a
+) -> impl Iterator<Item = V> + 'a
 where
-    T2: AsComplex<T> + Clone,
-    T: Sum + Float,
+    U: AsComplex<V> + Clone,
+    V: Sum + Float,
 {
     // The actual formula is |P|^2 / R^2.
     // Where P is the "sum of the pairs of products" (sum m=0 to L-1 of r[d+m].conj * r[d+m+L])
@@ -163,23 +163,23 @@ where
 
 /// Autocorrelates signal with itself.
 /// <https://openofdm.readthedocs.io/en/latest/detection.html>
-pub fn auto_correlate<T: FourierFloat + Sum, T2: Clone>(
-    samples: &[T2],
+pub fn auto_correlate<U: Clone, V: FourierFloat + Sum>(
+    samples: &[U],
     correlation_window_len: usize,
     repeat_len: usize,
-) -> impl Iterator<Item = T> + '_
+) -> impl Iterator<Item = V> + '_
 where
-    T2: AsComplex<T>,
+    U: AsComplex<V>,
 {
     (0..(samples.len() - correlation_window_len - repeat_len)).map(move |i| {
         (((0..correlation_window_len).map(|j| {
             samples[i + j].clone().as_complex()
                 * samples[i + j + repeat_len].clone().as_complex().conj()
         }))
-        .sum::<Complex<T>>())
+        .sum::<Complex<V>>())
         .norm()
             / ((0..correlation_window_len)
                 .map(|j| (samples[i + j]).clone().as_complex().norm_sqr()))
-            .sum::<T>()
+            .sum::<V>()
     })
 }

@@ -537,10 +537,10 @@ pub fn ofdm_premable_auto_correlation_detector<T: FourierFloat + Sum>(
 }
 
 /// Computes the cross correlation at each offset in time of an unknown signal to a known reference signal.
-pub fn cross_correlation_to_known_signal<'a, T: FourierFloat + Sum, T2: AsComplex<T> + Clone>(
-    unknown_signal: &'a [T2],
-    known_signal: &'a [T2],
-) -> std::iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> T + Clone + 'a> {
+pub fn cross_correlation_to_known_signal<'a, U: AsComplex<V> + Clone, V: FourierFloat + Sum>(
+    unknown_signal: &'a [U],
+    known_signal: &'a [U],
+) -> std::iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> V + Clone + 'a> {
     assert!(
         known_signal.len() < unknown_signal.len(),
         "Known signal should not be larger than unknown signal"
@@ -562,11 +562,11 @@ pub fn cross_correlation_to_known_signal<'a, T: FourierFloat + Sum, T2: AsComple
 /// - `samples`: The samples to find the preamble in.
 /// - `known_signal`: The known signal cross-correlation is attempting to find.
 /// - `threshold`: The correlation threshold to determine the existence of a preamble.
-pub fn ofdm_premable_cross_correlation_detector<T: FourierFloat + Sum, T2: AsComplex<T> + Clone>(
-    samples: &[T2],
-    known_signal: &[T2],
-    threshold: T,
-) -> Option<(usize, T)> {
+pub fn ofdm_premable_cross_correlation_detector<U: AsComplex<V> + Clone, V: FourierFloat + Sum>(
+    samples: &[U],
+    known_signal: &[U],
+    threshold: V,
+) -> Option<(usize, V)> {
     let cross_correlation = cross_correlation_to_known_signal(samples, known_signal);
     for (i, correlation) in cross_correlation.enumerate() {
         if correlation > threshold {
