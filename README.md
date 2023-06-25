@@ -27,7 +27,7 @@ The cli has help information if `-h` or `--help` or `help` are used as options.
         - [x] Cyclic prefix.
         - [ ] Multiple packets.
             - [x] Multiple frames.
-            - [x] Course timing estimation.
+            - [x] Coarse timing estimation.
                 - [x] Autocorrelation.
                 - [x] Cross-correlation.
             - [ ] Precise timing estimation.
