@@ -60,4 +60,10 @@ pub struct OfdmSpec {
     /// Can't be 0 because dc bin can't tranmit data.
     #[arg(short, long, default_value_t = 20, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
     pub first_bin: usize,
+
+    /// Number of 1 bits that separate the data from the padding 0's
+    // TODO restrict this to be less than the number of bits transmitted per data symbol. >= makes no sense since a full symbol of nothing will be transmitted.
+    // TODO alternatively or additionally correctly fix data_sample_len calculation in frame decoder
+    #[arg(short, long, default_value_t = 1)]
+    pub end_bits: usize,
 }

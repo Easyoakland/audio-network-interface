@@ -65,10 +65,14 @@ impl<'a, T> Debug for SubcarrierDecoder<'a, T> {
 /// Ofdm data encoding.
 #[derive(Clone, Debug)]
 pub struct OfdmDataEncoder<'a, I: Iterator<Item = bool>, T: FourierFloat> {
-    bits: std::iter::Chain<I, std::iter::Once<bool>>, // The bits to transmit plus a bit to indicate the end of data.
-    channels: &'a [SubcarrierEncoder<bool, Complex<T>>], // Each channel has a function that converts some finite number of bits into a complex value.
-    scratch_space: Vec<Complex<T>>, // Load the next value for each channel into this space instead of reallocating a vector.
-    cyclic_prefix_length: usize, // Number of samples to add from the end of the time signal onto the beginning.
+    /// The bits to transmit plus a bit to indicate the end of data.
+    bits: std::iter::Chain<I, std::iter::Take<std::iter::Repeat<bool>>>,
+    /// Each channel has a function that converts some finite number of bits into a complex value.
+    channels: &'a [SubcarrierEncoder<bool, Complex<T>>],
+    /// Load the next value for each channel into this space instead of reallocating a vector.
+    scratch_space: Vec<Complex<T>>,
+    /// Number of samples to add from the end of the time signal onto the beginning.
+    cyclic_prefix_length: usize,
 }
 
 impl<'a, I, T> OfdmDataEncoder<'a, I, T>
@@ -85,6 +89,7 @@ where
         bits: I,
         subcarrier_functions: &'a [SubcarrierEncoder<bool, Complex<T>>],
         cyclic_prefix_length: usize,
+        end_bits: usize,
     ) -> Self {
         assert!(
             cyclic_prefix_length <= frequency_samples_to_time(subcarrier_functions.len()),
@@ -93,7 +98,7 @@ where
         OfdmDataEncoder {
             scratch_space: vec![Complex::zero(); subcarrier_functions.len()],
             channels: subcarrier_functions,
-            bits: bits.chain(iter::once(true)),
+            bits: bits.chain(iter::repeat(true).take(end_bits)),
             cyclic_prefix_length,
         }
     }
@@ -197,11 +202,19 @@ where
 /// To get the actual value minus the padding on the final symbol use [`Self::decode`].
 #[derive(Clone, Debug)]
 pub struct OfdmDataDecoder<'a, I: Iterator<Item = T>, T: FourierFloat, const CHANNELS_NUM: usize> {
-    samples: I,                                                    // The bits to transmit.
-    subcarrier_decoders: [SubcarrierDecoder<'a, T>; CHANNELS_NUM], // Each channel has a function that converts some complex number into some number of bits.
-    scratch_space: Vec<T>, // Load the next value for each channel into this space instead of reallocating a vector.
-    cyclic_prefix_length: usize, // Number of samples to add from the end of the time signal onto the beginning.
-    gain_factors: [Complex<T>; CHANNELS_NUM], // The factor to adjust each subcarrier.
+    /// The bits to transmit.
+    samples: I,
+    /// Each channel has a function that converts some complex number into some number of bits.
+    subcarrier_decoders: [SubcarrierDecoder<'a, T>; CHANNELS_NUM],
+    /// Load the next value for each channel into this space instead of reallocating a vector.
+    scratch_space: Vec<T>,
+    /// Number of samples to add from the end of the time signal onto the beginning.
+    cyclic_prefix_length: usize,
+    /// The factor to adjust each subcarrier.
+    gain_factors: [Complex<T>; CHANNELS_NUM],
+    /// Number of end flag bits. This number of 1's is always added before the padding zeros.
+    /// They allow a dynamic amount of padding by indicating what is padding (after) and what is data (before).
+    end_bits: usize,
 }
 
 impl<'a, I, T, const CHANNELS_NUM: usize> OfdmDataDecoder<'a, I, T, CHANNELS_NUM>
@@ -215,11 +228,14 @@ where
     /// - `subcarrier_functions`: The functions that take a complex value and returns the bits it corresponds to.
     /// - `cyclic_prefix_length`: The number of time samples to repeat from the end of the sample at the beginning as a cyclic prefix. Must be <= time domain symbol sample length.
     /// - `gain_factors`: The factor to scale each coefficient by.
+    /// - `end_bits`: Number of end flag bits. This number of 1's is always added before the padding zeros.
+    /// They allow a dynamic amount of padding by indicating what is padding (after) and what is data (before).
     pub fn new(
         samples: I,
         subcarrier_decoders: [SubcarrierDecoder<'a, T>; CHANNELS_NUM],
         cyclic_prefix_length: usize,
         gain_factors: [Complex<T>; CHANNELS_NUM],
+        end_bits: usize,
     ) -> Self {
         assert!(
             cyclic_prefix_length <= frequency_samples_to_time(subcarrier_decoders.len()),
@@ -231,6 +247,7 @@ where
             samples,
             cyclic_prefix_length,
             gain_factors,
+            end_bits,
         }
     }
 
@@ -243,12 +260,15 @@ where
     /// - `cyclic_prefix_length`: The number of time samples to repeat from the end of the symbol at the beginning as a cyclic prefix. Must be <= time domain symbol sample length.
     /// - `preamble_seed`: The seed used to generate a preamble.
     /// - `preamble_repeat_cnt`: The repeat count used to generate a preamble.
+    /// - `end_bits`: Number of end flag bits. This number of 1's is always added before the padding zeros.
+    /// They allow a dynamic amount of padding by indicating what is padding (after) and what is data (before).
     pub fn build(
         mut samples: I,
         subcarrier_functions: [SubcarrierDecoder<'a, T>; CHANNELS_NUM],
         cyclic_prefix_length: usize,
         preamble_seed: u64,
         preamble_repeat_cnt: usize,
+        end_bits: usize,
     ) -> Self {
         assert!(
             cyclic_prefix_length <= frequency_samples_to_time(subcarrier_functions.len()),
@@ -273,6 +293,7 @@ where
             samples,
             cyclic_prefix_length,
             gain_factors,
+            end_bits,
         }
     }
 
@@ -350,13 +371,14 @@ impl<'a, I: Iterator<Item = D>, D: FourierFloat, const CHANNELS_NUM: usize>
     pub fn decode<T: bitvec::store::BitStore, O: bitvec::order::BitOrder>(
         decoder: Self,
     ) -> BitVec<T, O> {
+        let end_bits = decoder.end_bits;
         let mut decoded_bits = decoder
             .flatten()
             .collect::<BitVec<T, O>>()
             .into_iter()
             .rev()
             .skip_while(|x| !x) // skip 0's
-            .skip(1) // skip guard
+            .skip(end_bits) // skip end seperating bits
             .collect::<BitVec<T, O>>();
         decoded_bits.reverse();
         decoded_bits
@@ -564,7 +586,7 @@ pub struct SkipToKnownSignal<I>
 where
     I: Iterator,
 {
-    // Iterator being adapted.
+    /// Iterator being adapted.
     iter: I,
     /// The signal that is known. Complex for cross_correlation_calculation.
     known_signal: Box<[Complex<I::Item>]>,
@@ -783,6 +805,7 @@ where
             temp.into_iter(),
             self.subcarrier_encoders,
             self.ofdm_spec.cyclic_prefix_len,
+            self.ofdm_spec.end_bits,
         );
         Some(ofdm_frame_encoder(
             self.ofdm_spec.seed,
@@ -859,6 +882,7 @@ where
             self.ofdm_spec.cyclic_prefix_len,
             self.ofdm_spec.seed,
             self.ofdm_spec.short_training_repetitions,
+            self.ofdm_spec.end_bits,
         ))
     }
 }
