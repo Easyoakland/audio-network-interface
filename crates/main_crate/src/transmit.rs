@@ -105,7 +105,8 @@ where
     Ok(MustUse(stream))
 }
 
-/// Returns a [`Stream`] that plays sound samples until the returned stream is dropped. If the iterator runs out it plays silence (equilibrium samples) and sends `()` through the [`SyncSender`].
+/// Returns a [`Stream`] that plays sound samples until the returned stream is dropped.
+/// If the iterator runs out it plays silence (equilibrium samples) and sends `()` through the channel.
 pub fn play_stream(
     signal: impl Iterator<Item = f32> + Sync + Send + 'static,
     tx: SyncSender<()>,
@@ -229,13 +230,21 @@ const fn reed_sol_chunk_byte_size(parity_shards: usize) -> usize {
         - PADDED_SHARDS * SHARD_BYTES_LEN
 }
 
+#[derive(Error, Debug)]
+pub enum EncodingError<E> {
+    #[error("Forward error correction failed to encode: {0}")]
+    Fec(String),
+    #[error(transparent)]
+    Default(#[from] E),
+}
+
 /// Logic for sending a data transmission to a data sink.
 pub fn encode_transmission<E>(
     fec_spec: FecSpec,
     transmission_spec: TransmissionSpec,
     bytes: impl DynCloneIterator<u8> + Clone + 'static,
     mut sink: impl FnMut(Box<dyn DynCloneIterator<f32>>) -> Result<(), E>,
-) -> Result<(), E>
+) -> Result<(), EncodingError<E>>
 where
     E: Sync + Send + std::error::Error + 'static,
 {
@@ -255,9 +264,10 @@ where
             .map(move |x| reed_encoder.map(x));
         // Add parity checks to shards and convert bytes to bits.
         let bits = reed_encoding
-            .map(Result::unwrap) // TODO return this error
-            .map(move |x| parity_encoder.map(x.into_iter().flatten().collect()));
-        let bits = bits.flatten();
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| EncodingError::Fec(format!("Reed solomon encoding failed: {e}")))?
+            .into_iter()
+            .flat_map(move |x| parity_encoder.map(x.into_iter().flatten().collect()));
         trace!("Transmitting {} bits.", bits.clone().count());
 
         // Get speaker sample_rate.
