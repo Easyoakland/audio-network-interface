@@ -1,7 +1,7 @@
 use self::pseudo_random_noise::gen_pseudonoise_sequence;
 use crate::{
     correlation::{
-        cross_correlation_timing_metric, cross_correlation_timing_metric_single_value, AsComplex,
+        cross_correlation_timing_metric, cross_correlation_timing_metric_single_value, IntoComplex,
     },
     specs::OfdmSpec,
 };
@@ -537,7 +537,7 @@ pub fn ofdm_premable_auto_correlation_detector<T: FourierFloat + Sum>(
 }
 
 /// Computes the cross correlation at each offset in time of an unknown signal to a known reference signal.
-pub fn cross_correlation_to_known_signal<'a, U: AsComplex<V> + Clone, V: FourierFloat + Sum>(
+pub fn cross_correlation_to_known_signal<'a, U: IntoComplex<V> + Clone, V: FourierFloat + Sum>(
     unknown_signal: &'a [U],
     known_signal: &'a [U],
 ) -> std::iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> V + Clone + 'a> {
@@ -562,7 +562,10 @@ pub fn cross_correlation_to_known_signal<'a, U: AsComplex<V> + Clone, V: Fourier
 /// - `samples`: The samples to find the preamble in.
 /// - `known_signal`: The known signal cross-correlation is attempting to find.
 /// - `threshold`: The correlation threshold to determine the existence of a preamble.
-pub fn ofdm_premable_cross_correlation_detector<U: AsComplex<V> + Clone, V: FourierFloat + Sum>(
+pub fn ofdm_premable_cross_correlation_detector<
+    U: IntoComplex<V> + Clone,
+    V: FourierFloat + Sum,
+>(
     samples: &[U],
     known_signal: &[U],
     threshold: V,

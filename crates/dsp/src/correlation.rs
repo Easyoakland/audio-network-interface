@@ -9,22 +9,22 @@ use std::{
 use stft::fft::FourierFloat;
 
 /// Represents that there is a sensible representation of self as a `Complex<T>`.
-pub trait AsComplex<T> {
-    fn as_complex(self) -> Complex<T>;
+pub trait IntoComplex<T> {
+    fn into_complex(self) -> Complex<T>;
 }
 
 /// Trivial representation for `Complex<T>` as `Complex<T>`.
-impl<T> AsComplex<T> for Complex<T> {
+impl<T> IntoComplex<T> for Complex<T> {
     #[inline]
-    fn as_complex(self) -> Complex<T> {
+    fn into_complex(self) -> Complex<T> {
         self
     }
 }
 
 /// Types with a Zero can be represented as a Complex with only a real nonzero component.
-impl<T: Zero> AsComplex<T> for T {
+impl<T: Zero> IntoComplex<T> for T {
     #[inline]
-    fn as_complex(self) -> Complex<T> {
+    fn into_complex(self) -> Complex<T> {
         Complex {
             re: self,
             im: T::zero(),
@@ -81,12 +81,12 @@ fn cross_correlation_before_sum<'a, V, U>(
     #[allow(non_snake_case)] N: usize,
 ) -> impl Iterator<Item = Complex<U>> + 'a
 where
-    V: AsComplex<U> + Clone,
+    V: IntoComplex<U> + Clone,
     U: Clone + Neg<Output = U> + Num,
 {
     (0..N) // note this is exclusive upper bound so it matches formula.
         .filter_map(move |m| f.get(m).zip(g.get((m + n) % N)))
-        .map(|(f, g)| f.clone().as_complex().conj() * g.clone().as_complex())
+        .map(|(f, g)| f.clone().into_complex().conj() * g.clone().into_complex())
 }
 
 /// Cross correlates the two signals. Formula is cyclic correlation for finite discrete signal from:
@@ -100,7 +100,7 @@ pub fn cross_correlation<U, V>(
     #[allow(non_snake_case)] N: usize,
 ) -> Complex<V>
 where
-    U: AsComplex<V> + Clone,
+    U: IntoComplex<V> + Clone,
     V: Clone + Neg<Output = V> + Num + Sum,
 {
     cross_correlation_before_sum(f, g, n, N).sum()
@@ -122,7 +122,7 @@ pub fn cross_correlation_timing_metric_single_value<'a, U, V>(
     #[allow(non_snake_case)] N: usize,
 ) -> V
 where
-    U: AsComplex<V> + Clone,
+    U: IntoComplex<V> + Clone,
     V: Clone + Neg<Output = V> + Num + Sum + Float,
 {
     // The actual formula is |P|^2 / R^2.
@@ -151,7 +151,7 @@ pub fn cross_correlation_timing_metric<'a, U, V>(
     #[allow(non_snake_case)] N: usize,
 ) -> impl Iterator<Item = V> + 'a
 where
-    U: AsComplex<V> + Clone,
+    U: IntoComplex<V> + Clone,
     V: Sum + Float,
 {
     // The actual formula is |P|^2 / R^2.
@@ -169,17 +169,17 @@ pub fn auto_correlate<U: Clone, V: FourierFloat + Sum>(
     repeat_len: usize,
 ) -> impl Iterator<Item = V> + '_
 where
-    U: AsComplex<V>,
+    U: IntoComplex<V>,
 {
     (0..(samples.len() - correlation_window_len - repeat_len)).map(move |i| {
         (((0..correlation_window_len).map(|j| {
-            samples[i + j].clone().as_complex()
-                * samples[i + j + repeat_len].clone().as_complex().conj()
+            samples[i + j].clone().into_complex()
+                * samples[i + j + repeat_len].clone().into_complex().conj()
         }))
         .sum::<Complex<V>>())
         .norm()
             / ((0..correlation_window_len)
-                .map(|j| (samples[i + j]).clone().as_complex().norm_sqr()))
+                .map(|j| (samples[i + j]).clone().into_complex().norm_sqr()))
             .sum::<V>()
     })
 }
