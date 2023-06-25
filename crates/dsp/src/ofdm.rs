@@ -1,6 +1,8 @@
 use self::pseudo_random_noise::gen_pseudonoise_sequence;
 use crate::{
-    correlation::{cross_correlation_timing_metric, cross_correlation_timing_metric_single_value},
+    correlation::{
+        cross_correlation_timing_metric, cross_correlation_timing_metric_single_value, AsComplex,
+    },
     specs::OfdmSpec,
 };
 use bitvec::vec::BitVec;
@@ -85,6 +87,8 @@ where
     /// - `bits`: The underlying bit source that is being modulated.
     /// - `subcarrier_functions`: The function to use at a given sub carrier.
     /// - `cyclic_prefix_length`: The number of time samples to repeat from the end of the sample at the beginning as a cyclic prefix. Must be <= time domain symbol sample length.
+    /// - `end_bits`: Number of end flag bits. This number of 1's is always added before the padding zeros.
+    /// They allow a dynamic amount of padding by indicating what is padding (after) and what is data (before).
     pub fn new(
         bits: I,
         subcarrier_functions: &'a [SubcarrierEncoder<bool, Complex<T>>],
@@ -495,7 +499,7 @@ pub fn ofdm_preamble_encode<T: FourierFloat>(
 /// - `repeating_premable_len`: The length of the expected repeated section in the preamble.
 /// - `threshold`: The correlation threshold to determine the existence of a preamble.
 /// - `correlation_window_len`: The length of the window used for correlation calculation.
-pub fn ofdm_premable_auto_correlation_detector<T: FourierFloat + std::iter::Sum>(
+pub fn ofdm_premable_auto_correlation_detector<T: FourierFloat + Sum>(
     samples: &[Complex<T>],
     repeating_premable_len: usize,
     threshold: T,
@@ -533,9 +537,9 @@ pub fn ofdm_premable_auto_correlation_detector<T: FourierFloat + std::iter::Sum>
 }
 
 /// Computes the cross correlation at each offset in time of an unknown signal to a known reference signal.
-pub fn cross_correlation_to_known_signal<'a, T: FourierFloat + std::iter::Sum>(
-    unknown_signal: &'a [Complex<T>],
-    known_signal: &'a [Complex<T>],
+pub fn cross_correlation_to_known_signal<'a, T: FourierFloat + Sum, T2: AsComplex<T> + Clone>(
+    unknown_signal: &'a [T2],
+    known_signal: &'a [T2],
 ) -> std::iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> T + Clone + 'a> {
     assert!(
         known_signal.len() < unknown_signal.len(),
@@ -558,9 +562,9 @@ pub fn cross_correlation_to_known_signal<'a, T: FourierFloat + std::iter::Sum>(
 /// - `samples`: The samples to find the preamble in.
 /// - `known_signal`: The known signal cross-correlation is attempting to find.
 /// - `threshold`: The correlation threshold to determine the existence of a preamble.
-pub fn ofdm_premable_cross_correlation_detector<T: FourierFloat + std::iter::Sum>(
-    samples: &[Complex<T>],
-    known_signal: &[Complex<T>],
+pub fn ofdm_premable_cross_correlation_detector<T: FourierFloat + Sum, T2: AsComplex<T> + Clone>(
+    samples: &[T2],
+    known_signal: &[T2],
     threshold: T,
 ) -> Option<(usize, T)> {
     let cross_correlation = cross_correlation_to_known_signal(samples, known_signal);
@@ -589,14 +593,14 @@ where
     /// Iterator being adapted.
     iter: I,
     /// The signal that is known. Complex for cross_correlation_calculation.
-    known_signal: Box<[Complex<I::Item>]>,
+    known_signal: Box<[I::Item]>,
     /// Threshold to determine detection.
     threshold: I::Item,
     /// If the iterator has skipped yet.
     skipped: bool,
     /// Values used to determine if there is a match.
     /// Also used to reproduce the part of the signal that is consumed for detection.
-    buffered_values: Vec<Complex<I::Item>>,
+    buffered_values: Vec<I::Item>,
 }
 
 impl<I: Iterator> SkipToKnownSignal<I>
@@ -606,13 +610,7 @@ where
     pub fn new(iter: I, known_signal: &[I::Item], threshold: I::Item) -> Self {
         SkipToKnownSignal {
             iter,
-            known_signal: known_signal
-                .iter()
-                .map(|x| Complex {
-                    re: x.clone(),
-                    im: I::Item::zero(),
-                })
-                .collect(),
+            known_signal: known_signal.iter().cloned().collect(),
             threshold,
             skipped: false,
             buffered_values: Vec::with_capacity(known_signal.len()),
@@ -630,25 +628,14 @@ where
         // If not already skipped to frame start then skip to frame start.
         if !self.skipped {
             // Fill the buffer with a number of values equal to the length of the known_signal.
-            self.buffered_values.extend(
-                self.iter
-                    .by_ref()
-                    .map(|x| Complex {
-                        re: x,
-                        im: I::Item::zero(),
-                    })
-                    .take(self.known_signal.len()),
-            );
+            self.buffered_values
+                .extend(self.iter.by_ref().take(self.known_signal.len()));
 
             // Repeatedly take a value and check if there is a sufficient correlation in the buffer to the known signal.
             // If there is then the frame has started.
             self.iter
                 .by_ref()
                 .take_while(|&x| {
-                    let x = Complex {
-                        re: x,
-                        im: I::Item::zero(),
-                    };
                     // If detected stop skipping.
                     let over_threshold = cross_correlation_timing_metric_single_value(
                         &self.buffered_values,
@@ -670,7 +657,7 @@ where
         if self.buffered_values.is_empty() {
             self.iter.next()
         } else {
-            Some(self.buffered_values.remove(0).re)
+            Some(self.buffered_values.remove(0))
         }
     }
 }

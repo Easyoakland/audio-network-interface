@@ -32,7 +32,6 @@ use fec::{
 };
 use iterator_adapters::IteratorAdapter;
 use log::{error, trace, warn};
-use num_complex::Complex;
 use std::{
     io,
     iter::{self, Iterator},
@@ -368,19 +367,13 @@ pub fn decode_transmission(
                 ofdm_spec.short_training_repetitions,
                 ofdm_spec.time_symbol_len,
                 ofdm_spec.cyclic_prefix_len,
-            );
-            // Map to complex for use in functions.
-            let data_complex = source
-                .clone()
-                .map(|x| Complex { re: x, im: 0.0 })
-                .collect::<Vec<_>>();
-            let tx_preamble_complex = tx_preamble
-                .map(|x| Complex { re: x, im: 0.0 })
-                .collect::<Vec<_>>();
+            )
+            .collect::<Vec<_>>();
+            let data_complex = source.clone().collect::<Vec<_>>();
             // Detect start of frame by comparing to reference preamble.
             let Some(packet_start) = ofdm_premable_cross_correlation_detector(
                 &data_complex,
-                &tx_preamble_complex
+                &tx_preamble
                     [..ofdm_spec.time_symbol_len / ofdm_spec.short_training_repetitions],
                 ofdm_spec.cross_correlation_threshold,
             ) else {

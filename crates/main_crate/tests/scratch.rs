@@ -55,6 +55,7 @@ fn scratch() -> anyhow::Result<()> {
         bytes_to_bits((0..=255).take(bytes_num)),
         &*subcarriers_encoders,
         480,
+        1,
     );
 
     // Play sound -----------------------------------------------------------------
@@ -103,16 +104,12 @@ fn scratch() -> anyhow::Result<()> {
         // .map(|x| x * 100.0)
         .skip(20_000) // Skip startup samples
         .collect::<Vec<_>>();
-    let tx_preamble = ofdm_preamble_encode(SEED, REPEAT_CNT, ofdm.time_len(), ofdm.cyclic_len());
+    let tx_preamble = ofdm_preamble_encode(SEED, REPEAT_CNT, ofdm.time_len(), ofdm.cyclic_len())
+        .collect::<Vec<_>>();
     let data_complex = data
         .clone()
         .into_iter()
-        .map(|x| Complex { re: x, im: 0.0 })
         .map(|x| x / 2.0)
-        .collect::<Vec<_>>();
-    let preamble_complex = tx_preamble
-        .clone()
-        .map(|x: f64| Complex { re: x, im: 0.0 })
         .collect::<Vec<_>>();
     /* let auto_preamble_detect = dbg!(ofdm_premable_auto_correlation_detector(
         &data_complex,
@@ -124,7 +121,7 @@ fn scratch() -> anyhow::Result<()> {
     .0 */
     let cross_preamble_detect = dbg!(ofdm_premable_cross_correlation_detector(
         &data_complex,
-        &preamble_complex[..ofdm.time_len() / REPEAT_CNT],
+        &tx_preamble[..ofdm.time_len() / REPEAT_CNT],
         0.125,
     ))
     .expect("Can't find packet.")
@@ -132,10 +129,10 @@ fn scratch() -> anyhow::Result<()> {
 
     {
         // Time Graph --------------------------------
-        let cross = (0..data_complex.len() - preamble_complex.len()).map(|i| {
+        let cross = (0..data_complex.len() - tx_preamble.len()).map(|i| {
             cross_correlation_timing_metric_single_value(
                 &data_complex[i..],
-                &preamble_complex[..ofdm.time_len() / REPEAT_CNT],
+                &tx_preamble[..ofdm.time_len() / REPEAT_CNT],
                 ofdm.time_len() / REPEAT_CNT,
             )
         });
@@ -168,7 +165,7 @@ fn scratch() -> anyhow::Result<()> {
                     .collect(),
                 cross_correlation_to_known_signal(
                     &data_complex,
-                    &preamble_complex[..ofdm.time_len() / REPEAT_CNT],
+                    &tx_preamble[..ofdm.time_len() / REPEAT_CNT],
                 )
                 .collect(),
                 /* cross_timing_metric.clone(),
@@ -200,6 +197,7 @@ fn scratch() -> anyhow::Result<()> {
         ofdm.cyclic_len(),
         SEED,
         REPEAT_CNT,
+        1,
     );
     let mut decoder_c = decoder.clone();
     // dbg!((0..decoder.gain_factors().len())
