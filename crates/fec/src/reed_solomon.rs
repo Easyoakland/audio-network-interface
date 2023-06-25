@@ -1,13 +1,20 @@
 use crate::traits::Function;
 use itertools::Itertools;
 use reed_solomon_erasure::galois_8::ReedSolomon;
-use std::iter;
+use std::{iter, sync::Arc};
 
 /// Encodes data with reed solomon erasure encoding
 #[derive(Debug, Default, Clone)]
 pub struct ReedSolomonEncoder {
     pub block_size: usize,
     pub parity_blocks: usize,
+}
+
+/// Reuse the created [`ReedSolomon`] since creation is a high compute operation.
+/// Would clone, but clone is implemeneted in terms of [`ReedSolomon::new`] and therefore has the same high compute cost.
+#[cached::proc_macro::cached]
+fn cached_new_reed_sol(data_blocks: usize, parity_blocks: usize) -> Arc<ReedSolomon> {
+    Arc::new(ReedSolomon::new(data_blocks, parity_blocks).unwrap())
 }
 
 impl ReedSolomonEncoder {
@@ -26,7 +33,7 @@ impl ReedSolomonEncoder {
         };
 
         // Define encoder.
-        let r = ReedSolomon::new(data_blocks, self.parity_blocks).unwrap();
+        let r = cached_new_reed_sol(data_blocks, self.parity_blocks);
 
         // Add padding amount and padding
         let data = iter::once(padding as u8)
@@ -81,11 +88,11 @@ impl ReedSolomonDecoder {
             .ok_or(reed_solomon_erasure::Error::TooFewShards)?;
 
         // Reconstruct from encoding.
-        let r = ReedSolomon::new(
+
+        let r = cached_new_reed_sol(
             non_paddded_data_shards + PADDED_DATA_SHARDS,
             self.parity_shards,
-        )
-        .unwrap();
+        );
 
         // If padding shard exists make sure it has a valid amount of padding.
         // Remove padding. Remember to skip the amount byte indicating the amount of padding in addition to the extra 0's.

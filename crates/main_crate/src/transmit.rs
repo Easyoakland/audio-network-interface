@@ -260,7 +260,6 @@ where
         // Encode with reed_solomon.
         let reed_encoding = bytes
             .chunks(reed_sol_chunk_byte_size(fec_spec.parity_shards))
-            .map(Vec::from_iter)
             .map(move |x| reed_encoder.map(x));
         // Add parity checks to shards and convert bytes to bits.
         let bits = reed_encoding

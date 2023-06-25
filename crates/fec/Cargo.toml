@@ -18,5 +18,11 @@ log = "0.4.17"
 nalgebra = "0.32.2"
 reed-solomon-erasure = "6.0.0"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+cached = "0.44.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+cached = { version = "0.44.0", features = ["wasm"] }
+
 [dev-dependencies]
 proptest = "1.1.0"
