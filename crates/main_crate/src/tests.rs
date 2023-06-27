@@ -6,7 +6,7 @@ use dsp::specs::{FdmSpec, OfdmSpec, TransmissionSpec};
 use log::trace;
 use proptest::{prelude::ProptestConfig, proptest};
 use rand_distr::{Distribution, Normal};
-use std::{clone::Clone, io, sync::OnceLock};
+use std::{clone::Clone, convert::Infallible, sync::OnceLock};
 
 /// Used to init logging only once among multiple tests.
 static INIT_LOGGING: std::sync::Once = std::sync::Once::new();
@@ -47,7 +47,7 @@ fn simulated_transmit_receive(
         bytes.clone(),
         |x| {
             channel.push(x);
-            Ok::<_, io::Error>(()) // error doesn't matter for this test. picked randomly.
+            Ok::<_, Infallible>(())
         },
     )
     .unwrap();
@@ -92,7 +92,7 @@ proptest! {
         };
         encode_transmission(FEC_DEFAULT_SPEC, TransmissionSpec::Fdm(fdm_spec), 0..=255, |x| {
             drop(x);
-            Ok::<_, io::Error>(()) // error doesn't matter for this test. picked randomly.
+            Ok::<_, Infallible>(())
         }).unwrap();
     }
 
@@ -118,7 +118,7 @@ fn simulated_transmit_ofdm() {
         0..=255,
         |x| {
             drop(x);
-            Ok::<_, io::Error>(()) // error doesn't matter for this test. picked randomly.
+            Ok::<_, Infallible>(())
         },
     )
     .unwrap();
