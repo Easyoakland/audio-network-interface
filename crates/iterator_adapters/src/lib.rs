@@ -1,3 +1,4 @@
+pub mod bit_to_byte;
 pub mod chunks;
 pub mod mean;
 pub mod median;
@@ -5,6 +6,7 @@ pub mod order_statistics;
 pub mod remove_preceding;
 pub mod windows;
 
+use bit_to_byte::BitToByte;
 use chunks::Chunks;
 use num_traits::{cast, NumCast, Zero};
 use std::{
@@ -130,5 +132,13 @@ pub trait IteratorAdapter: Iterator {
         Self: Sized,
     {
         Chunks::new(self, chunk_size)
+    }
+
+    /// Converts iterator of bool into iterator of u8. If `len % 8 != 0` then the extra will be ignored.
+    fn bits_to_bytes<T>(self) -> BitToByte<Self, T>
+    where
+        Self: Sized + Iterator<Item = bool>,
+    {
+        BitToByte::new(self)
     }
 }

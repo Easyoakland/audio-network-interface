@@ -5,7 +5,6 @@ use log::trace;
 use ordered_float::OrderedFloat;
 use std::{
     f32::consts::PI,
-    io::Read,
     iter::{self, Chain},
 };
 use stft::Stft;
@@ -218,16 +217,14 @@ impl OokFdmDecoder {
         assert!(start_idx < decoded.len() - 1 - end_idx, "End before start.");
 
         // Remove stuff before and after guard symbol.
-        let decoded: BitVec<u8, Lsb0> = decoded
+        let decoded = decoded
             .into_iter()
             .skip(start_idx)
             .rev()
             .skip(end_idx)
-            .rev()
-            .collect();
+            .rev();
 
         // Convert bit vector to byte vector.
-        let bytes: Result<Vec<u8>, _> = decoded.bytes().collect();
-        bytes.expect("Failed to convert decoded to bytes.")
+        decoded.bits_to_bytes().collect()
     }
 }

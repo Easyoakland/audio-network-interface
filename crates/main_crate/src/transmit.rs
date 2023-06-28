@@ -6,16 +6,14 @@ use crate::{
     },
     transmit,
 };
-use bitvec::{
-    prelude::{BitArray, LocalBits, Lsb0},
-    vec::BitVec,
-};
+use bitvec::{prelude::Lsb0, vec::BitVec};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     BuildStreamError, Device, FromSample, PlayStreamError, Sample, SampleFormat, SizedSample,
     Stream, StreamConfig,
 };
 use dsp::{
+    bit_byte_conversion::bytes_to_bits,
     carrier_modulation::{bpsk_decode, bpsk_encode, null_decode, null_encode},
     ofdm::{
         ofdm_preamble_encode, ofdm_premable_cross_correlation_detector, OfdmDataDecoder,
@@ -34,7 +32,7 @@ use iterator_adapters::IteratorAdapter;
 use log::{error, trace, warn};
 use std::{
     io,
-    iter::{self, Iterator},
+    iter::Iterator,
     marker::{Send, Sync},
     sync::mpsc::{self, RecvError, SyncSender, TrySendError},
     time::{Duration, Instant},
@@ -177,24 +175,6 @@ pub fn play_stream_blocking(
     let _stream = play_stream(signal, tx)?;
     // Block while waiting for end signal.
     rx.recv().map_err(Into::into)
-}
-
-/// Coverts byte to iterator of bool.
-fn byte_to_bit(byte: u8) -> bitvec::array::IntoIter<u8, LocalBits> {
-    BitArray::<u8, Lsb0>::from(byte).into_iter()
-}
-
-/// Return type of `bytes_to_bits`. Basically `impl Iterator<Item = bool>`.
-type BitIter<T> = iter::FlatMap<
-    T,
-    bitvec::array::IntoIter<u8, Lsb0>,
-    fn(u8) -> bitvec::array::IntoIter<u8, Lsb0>,
->;
-
-/// Converts an iterator of bytes into a 8x longer iterator of bits.
-/// The returned type is impl Iterator<Item = bool> but keeps other traits (ex. `Clone`) the original iterator has.
-pub fn bytes_to_bits<T: Iterator<Item = u8>>(bytes: T) -> BitIter<T> {
-    bytes.into_iter().flat_map(byte_to_bit)
 }
 
 /// Generates an FDM ook transmission.

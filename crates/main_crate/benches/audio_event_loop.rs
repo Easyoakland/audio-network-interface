@@ -1,9 +1,10 @@
 //! The function called for each sample of audio must run faster than 1/48000 = 20.833 us. Prefferably much faster.
 //! The benchmarks in this file are tests for what can or can not be included in this loop.
 
-use audio_network_interface::{constants::REED_SOL_MAX_SHARDS, transmit};
+use audio_network_interface::constants::REED_SOL_MAX_SHARDS;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use dsp::{
+    bit_byte_conversion,
     carrier_modulation::{bpsk_encode, null_encode, ook_encode},
     ofdm::{OfdmDataEncoder, OfdmFramesEncoder, SubcarrierEncoder},
     specs::OfdmSpec,
@@ -42,7 +43,7 @@ fn ofdm_benchmark(c: &mut Criterion) {
     ));
     subcarriers[1] = SubcarrierEncoder::T1(ook_encode);
     let mut ofdm = OfdmDataEncoder::new(
-        transmit::bytes_to_bits(iter::repeat(255)),
+        bit_byte_conversion::bytes_to_bits(iter::repeat(255u8)),
         subcarriers,
         subcarriers.len() / 10,
         1,

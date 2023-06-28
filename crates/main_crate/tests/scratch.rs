@@ -213,9 +213,11 @@ fn scratch() -> anyhow::Result<()> {
     for data in decoder {
         decoded.push(data);
     }
-    let mut decoded_bytes: BitVec<usize, Lsb0> = BitVec::new();
-    decoded_bytes.extend(decoded.into_iter().flatten());
-    let bytes = decoded_bytes.bytes().take(bytes_num);
+    let bytes = decoded
+        .into_iter()
+        .flatten()
+        .bits_to_bytes()
+        .take(bytes_num);
     eprintln!("Decoded bytes: {:?}", bytes.collect::<Result<Vec<_>, _>>()?);
 
     let mut points = Vec::new();

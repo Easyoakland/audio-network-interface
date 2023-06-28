@@ -13,6 +13,9 @@ pub mod correlation;
 /// Specs for different transmission types.
 pub mod specs;
 
+/// Conversion between bit (BitVec/Iterator<Item =bool>) and byte types (almost everything).
+pub mod bit_byte_conversion;
+
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
