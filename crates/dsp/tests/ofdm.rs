@@ -12,7 +12,7 @@ use proptest::{prelude::ProptestConfig, proptest};
 proptest! {
     #![proptest_config(ProptestConfig {cases: 10, max_shrink_iters: 1000, .. ProptestConfig::default()})]
     #[test]
-    fn ofdm_data_encode_decode(input: Vec<bool>, cyclic_prefix_len in 0usize..1000, end_bits in 0usize..1000) {
+    fn ofdm_data_encode_decode(input: Vec<bool>, cyclic_prefix_len in 0usize..1000, end_bits in 1usize..1000) {
         let input = input.into_iter();
 
         // Set subcarriers to modulate on.

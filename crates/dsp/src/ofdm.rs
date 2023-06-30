@@ -144,7 +144,8 @@ where
     /// Use these complex values for each channel in an ifft to determine the next symbol's time samples.
     /// Will pull bits from the bit source to give to each function the amount of bits it needs in order.
     fn next(&mut self) -> Option<Self::Item> {
-        /// TODO fix this mess.
+        /// TODO fix this mess. This function shouldn't be necessary.
+        /// Should not have to match repeatedly with the same call to this inner function.
         /// I can't determine a better way to do this but this looks bad.
         /// It applies the subcarrier modulation regardless of how long the input array is.
         fn logic<const N: usize, I: Iterator<Item = bool>, T>(
@@ -152,31 +153,29 @@ where
             f: fn([bool; N]) -> Complex<T>,
             scratch: &mut Complex<T>,
         ) -> usize {
-            // Pull the necessary bits from source into an array.
+            // Setup function input.
             let mut bits_for_channel = [Default::default(); N];
 
-            // TODO: Handle bits of not integer multiple of subcarriers number.
-            // If runs out of data leaves the default value.
+            // Take up to `N` values. If there are less than `N` values left the remaining values are left default (`false`).
+            // Use `i` to record how many values were actually taken.
             let mut i = 0;
-            while i < N {
-                bits_for_channel[i] = match bits.next() {
-                    Some(x) => x,
-                    None => break,
-                };
+            bits.take(N).for_each(|bit| {
+                bits_for_channel[i] = bit;
                 i += 1;
-            }
+            });
 
-            // Perform next sample computation.
+            // Perform next sample computation on function input.
             *scratch = f(bits_for_channel);
 
+            // Return the number of bits that were actually taken.
             i
         }
-        // Pull next values into scratch.
+        // Pull next values into scratch. If it the first subcarrier and no new bits were taken then the data has been exhausted.
         let mut first_subcarrier = true;
         for (f, scratch) in self.channels.iter().zip(self.scratch_space.iter_mut()) {
             #[rustfmt::skip]
             match f {
-                SubcarrierEncoder::T0(f) => { logic(&mut self.bits, *f, scratch); },
+                SubcarrierEncoder::T0(f) => { logic(&mut self.bits, *f, scratch); }, // Don't test at T0 because it always takes 0 data.
                 SubcarrierEncoder::T1(f) => if logic(&mut self.bits, *f, scratch) == 0 && first_subcarrier { return None } else { first_subcarrier = false },
                 SubcarrierEncoder::T2(f) => if logic(&mut self.bits, *f, scratch) == 0 && first_subcarrier { return None } else { first_subcarrier = false },
                 SubcarrierEncoder::T3(f) => if logic(&mut self.bits, *f, scratch) == 0 && first_subcarrier { return None } else { first_subcarrier = false },
