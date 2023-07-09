@@ -6,5 +6,5 @@ pub const SIMULTANEOUS_BYTES: usize = 8;
 pub const TIME_SAMPLES_PER_SYMBOL: usize = 4800;
 
 // Constants that make sense as constants.
-pub const BITS_PER_BYTE: usize = 8;
+pub const BITS_PER_BYTE: usize = u8::BITS as usize;
 pub const REED_SOL_MAX_SHARDS: usize = 256;

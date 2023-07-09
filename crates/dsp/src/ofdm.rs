@@ -350,17 +350,15 @@ impl<'a, I: Iterator<Item = T>, T: FourierFloat, const CHANNELS_NUM: usize> Iter
         // Decode complex values to corresponding bit values.
         // Adjust by gain factor and apply channel's decoding function.
         let mut out = Vec::new();
-        for (sample, channel_func) in spectrum
+        spectrum
             .into_iter()
             .enumerate()
             .map(|(i, x)| x * self.gain_factors[i])
             .zip(self.subcarrier_decoders)
-        {
-            match channel_func {
+            .for_each(|(sample, subcarrier_decoder)| match subcarrier_decoder {
                 SubcarrierDecoder::Data(f) => out.extend_from_slice(&f(sample)),
                 SubcarrierDecoder::Pilot(_) => todo!("Pilot decoding"),
-            }
-        }
+            });
 
         Some(out)
     }
@@ -705,10 +703,7 @@ where
         .for_each(drop);
 
     // Determine the fourier coefficients of the expected preamble and the actual preamble coefficients.
-    let mut actual_preamble = samples
-        .by_ref()
-        .take(symbol_data_time_len)
-        .collect::<Vec<_>>();
+    let mut actual_preamble = samples.take(symbol_data_time_len).collect::<Vec<_>>();
     let actual_coefficients = scaled_real_fft(&mut actual_preamble);
     let expected_coefficients = scaled_real_fft(expected_preamble);
     let mut scale_factors = [Complex::one(); CHANNELS_NUM];

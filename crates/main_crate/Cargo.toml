@@ -41,7 +41,7 @@ clap = { version = "4.1.13", features = ["derive"] }
 cpal = "0.15.1"
 dsp = { path = "../dsp" }
 dyn-clone = "1.0.11"
-eframe = { version = "0.22.0", features = ["glow"] }
+eframe = { version = "0.22.0", features = ["glow"], optional = true }
 fec = { path = "../fec" }
 fixedbitset = "0.4.2"
 hound = "3.5.0"
@@ -70,7 +70,7 @@ rand_distr = "0.4.3"
 [features]
 default = []
 plot = ["dep:plotters"]
-gui = ["dep:klask"]
+gui = ["dep:klask", "dep:eframe"]
 
 [[bench]]
 name = "audio_event_loop"
