@@ -1,11 +1,11 @@
 use self::pseudo_random_noise::gen_pseudonoise_sequence;
 use crate::{
+    bit_byte_conversion::byte_to_bits,
     correlation::{
         cross_correlation_timing_metric, cross_correlation_timing_metric_single_value, IntoComplex,
     },
     specs::OfdmSpec,
 };
-use bitvec::vec::BitVec;
 use iterator_adapters::IteratorAdapter;
 use num_complex::Complex;
 use num_traits::{One, Zero};
@@ -16,7 +16,7 @@ use std::{
 };
 use stft::{
     fft::{scaled_real_fft, scaled_real_ifft, FourierFloat},
-    frequency_samples_to_time,
+    frequency_samples_to_time, time_samples_to_frequency,
 };
 
 /// Pseudo random noise used in ofdm preamble symbols.
@@ -68,9 +68,9 @@ impl<'a, T> Debug for SubcarrierDecoder<'a, T> {
 #[derive(Clone, Debug)]
 pub struct OfdmDataEncoder<'a, I: Iterator<Item = bool>, T: FourierFloat> {
     /// The bits to transmit plus a bit to indicate the end of data.
-    bits: std::iter::Chain<I, std::iter::Take<std::iter::Repeat<bool>>>,
+    bits: I,
     /// Each channel has a function that converts some finite number of bits into a complex value.
-    channels: &'a [SubcarrierEncoder<bool, Complex<T>>],
+    subcarrier_functions: &'a [SubcarrierEncoder<bool, Complex<T>>],
     /// Load the next value for each channel into this space instead of reallocating a vector.
     scratch_space: Vec<Complex<T>>,
     /// Number of samples to add from the end of the time signal onto the beginning.
@@ -87,13 +87,10 @@ where
     /// - `bits`: The underlying bit source that is being modulated.
     /// - `subcarrier_functions`: The function to use at a given sub carrier.
     /// - `cyclic_prefix_length`: The number of time samples to repeat from the end of the sample at the beginning as a cyclic prefix. Must be <= time domain symbol sample length.
-    /// - `end_bits`: Number of end flag bits. This number of 1's is always added before the padding zeros.
-    /// They allow a dynamic amount of padding by indicating what is padding (after) and what is data (before).
     pub fn new(
         bits: I,
         subcarrier_functions: &'a [SubcarrierEncoder<bool, Complex<T>>],
         cyclic_prefix_length: usize,
-        end_bits: usize,
     ) -> Self {
         assert!(
             cyclic_prefix_length <= frequency_samples_to_time(subcarrier_functions.len()),
@@ -101,8 +98,8 @@ where
         );
         OfdmDataEncoder {
             scratch_space: vec![Complex::zero(); subcarrier_functions.len()],
-            channels: subcarrier_functions,
-            bits: bits.chain(iter::repeat(true).take(end_bits)),
+            subcarrier_functions,
+            bits,
             cyclic_prefix_length,
         }
     }
@@ -114,12 +111,12 @@ where
 
     /// The number of positive frequency domain samples per symbol.
     pub fn freq_len(&self) -> usize {
-        self.channels.len()
+        self.subcarrier_functions.len()
     }
 
     /// The time domain sample length per symbol without cyclic prefix.
     pub fn time_len(&self) -> usize {
-        frequency_samples_to_time(self.channels.len())
+        frequency_samples_to_time(self.subcarrier_functions.len())
     }
 
     /// The length of the cyclic prefix.
@@ -172,7 +169,11 @@ where
         }
         // Pull next values into scratch. If it the first subcarrier and no new bits were taken then the data has been exhausted.
         let mut first_subcarrier = true;
-        for (f, scratch) in self.channels.iter().zip(self.scratch_space.iter_mut()) {
+        for (f, scratch) in self
+            .subcarrier_functions
+            .iter()
+            .zip(self.scratch_space.iter_mut())
+        {
             #[rustfmt::skip]
             match f {
                 SubcarrierEncoder::T0(f) => { logic(&mut self.bits, *f, scratch); }, // Don't test at T0 because it always takes 0 data.
@@ -215,9 +216,6 @@ pub struct OfdmDataDecoder<'a, I: Iterator<Item = T>, T: FourierFloat, const CHA
     cyclic_prefix_length: usize,
     /// The factor to adjust each subcarrier.
     gain_factors: [Complex<T>; CHANNELS_NUM],
-    /// Number of end flag bits. This number of 1's is always added before the padding zeros.
-    /// They allow a dynamic amount of padding by indicating what is padding (after) and what is data (before).
-    end_bits: usize,
 }
 
 impl<'a, I, T, const CHANNELS_NUM: usize> OfdmDataDecoder<'a, I, T, CHANNELS_NUM>
@@ -231,14 +229,11 @@ where
     /// - `subcarrier_functions`: The functions that take a complex value and returns the bits it corresponds to.
     /// - `cyclic_prefix_length`: The number of time samples to repeat from the end of the sample at the beginning as a cyclic prefix. Must be <= time domain symbol sample length.
     /// - `gain_factors`: The factor to scale each coefficient by.
-    /// - `end_bits`: Number of end flag bits. This number of 1's is always added before the padding zeros.
-    /// They allow a dynamic amount of padding by indicating what is padding (after) and what is data (before).
     pub fn new(
         samples: I,
         subcarrier_decoders: [SubcarrierDecoder<'a, T>; CHANNELS_NUM],
         cyclic_prefix_length: usize,
         gain_factors: [Complex<T>; CHANNELS_NUM],
-        end_bits: usize,
     ) -> Self {
         assert!(
             cyclic_prefix_length <= frequency_samples_to_time(subcarrier_decoders.len()),
@@ -250,44 +245,6 @@ where
             samples,
             cyclic_prefix_length,
             gain_factors,
-            end_bits,
-        }
-    }
-
-    /// Builds a new OFDM demodulation where each subcarrier's values are determined by the subcarrier's function.
-    /// Uses the `samples` iterator to calculate the gain factors for the remainder of the frame.
-    /// Assumes `samples` starts at the beginning of a frame's preamble.
-    /// # Arguments
-    /// - `samples`: The iterator over time domain samples.
-    /// - `subcarrier_functions`: The functions that take a complex value and returns the bits it corresponds to.
-    /// - `cyclic_prefix_length`: The number of time samples to repeat from the end of the symbol at the beginning as a cyclic prefix. Must be <= time domain symbol sample length.
-    /// - `preamble_seed`: The seed used to generate a preamble.
-    /// - `preamble_repeat_cnt`: The repeat count used to generate a preamble.
-    /// - `end_bits`: Number of end flag bits. This number of 1's is always added before the padding zeros.
-    /// They allow a dynamic amount of padding by indicating what is padding (after) and what is data (before).
-    pub fn build(
-        mut samples: I,
-        subcarrier_functions: [SubcarrierDecoder<'a, T>; CHANNELS_NUM],
-        ofdm_spec: &OfdmSpec,
-    ) -> Self {
-        assert!(
-            ofdm_spec.cyclic_prefix_len <= frequency_samples_to_time(subcarrier_functions.len()),
-            "Cyclic prefix can't be longer than the actual symbol."
-        );
-        let symbol_time_len = frequency_samples_to_time(subcarrier_functions.len());
-
-        // Get the gain factors of the nonzero pseudorandom noise symbol.
-        let expected_preamble = ofdm_preamble_encode(ofdm_spec).collect();
-        let gain_factors =
-            gain_from_preamble(&mut samples, expected_preamble, ofdm_spec.cyclic_prefix_len);
-
-        OfdmDataDecoder {
-            scratch_space: vec![T::zero(); symbol_time_len],
-            subcarrier_decoders: subcarrier_functions,
-            samples,
-            cyclic_prefix_length: ofdm_spec.cyclic_prefix_len,
-            gain_factors,
-            end_bits: ofdm_spec.end_bits,
         }
     }
 
@@ -355,25 +312,15 @@ impl<'a, I: Iterator<Item = T>, T: FourierFloat, const CHANNELS_NUM: usize> Iter
     }
 }
 
-impl<'a, I: Iterator<Item = D>, D: FourierFloat, const CHANNELS_NUM: usize>
-    OfdmDataDecoder<'a, I, D, CHANNELS_NUM>
+impl<'a, I: Iterator<Item = S>, S: FourierFloat, const CHANNELS_NUM: usize>
+    OfdmDataDecoder<'a, I, S, CHANNELS_NUM>
 {
-    /// Runs the iterator until exhausted and removes the guard bits.
-    /// Function takes self by move because the decoder won't work again because the internal iterator will be exhausted.
-    pub fn decode<T: bitvec::store::BitStore, O: bitvec::order::BitOrder>(
-        decoder: Self,
-    ) -> BitVec<T, O> {
-        let end_bits = decoder.end_bits;
-        let mut decoded_bits = decoder
-            .flatten()
-            .collect::<BitVec<T, O>>()
-            .into_iter()
-            .rev()
-            .skip_while(|x| !x) // skip 0's
-            .skip(end_bits) // skip end seperating bits
-            .collect::<BitVec<T, O>>();
-        decoded_bits.reverse();
-        decoded_bits
+    /// Extracts only the data bits from the decoder.
+    pub fn decode(
+        self,
+        data_len: usize,
+    ) -> iter::Take<iter::Flatten<OfdmDataDecoder<'a, I, S, CHANNELS_NUM>>> {
+        self.flatten().take(data_len)
     }
 }
 
@@ -464,7 +411,7 @@ fn ofdm_long_training_symbol<T: FourierFloat>(
 pub fn ofdm_preamble_encode<T: FourierFloat>(
     ofdm_spec: &OfdmSpec,
 ) -> iter::Chain<std::vec::IntoIter<T>, std::vec::IntoIter<T>> {
-    let time_freq_len = stft::time_samples_to_frequency(ofdm_spec.time_symbol_len);
+    let time_freq_len = time_samples_to_frequency(ofdm_spec.time_symbol_len);
     let short = ofdm_short_training_symbol(
         ofdm_spec.seed,
         ofdm_spec.short_training_repetitions,
@@ -527,7 +474,7 @@ pub fn ofdm_premable_auto_correlation_detector<T: FourierFloat + Sum>(
 pub fn cross_correlation_to_known_signal<'a, U: IntoComplex<V> + Clone, V: FourierFloat + Sum>(
     unknown_signal: &'a [U],
     known_signal: &'a [U],
-) -> std::iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> V + Clone + 'a> {
+) -> iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> V + Clone + 'a> {
     assert!(
         known_signal.len() < unknown_signal.len(),
         "Known signal should not be larger than unknown signal"
@@ -652,26 +599,40 @@ where
     }
 }
 
-type OfdmFrame<'a, I, T> = std::iter::Chain<
-    std::iter::Chain<vec::IntoIter<T>, vec::IntoIter<T>>,
-    std::iter::Flatten<OfdmDataEncoder<'a, I, T>>,
+type OfdmFrame<'a, I, T> = iter::Chain<
+    iter::Chain<
+        iter::Chain<vec::IntoIter<T>, vec::IntoIter<T>>,
+        iter::Flatten<
+            OfdmDataEncoder<'a, bitvec::array::IntoIter<usize, bitvec::prelude::LocalBits>, T>,
+        >,
+    >,
+    iter::Flatten<OfdmDataEncoder<'a, I, T>>,
 >;
 
 /// Generates an iterator of the ofdm frame's samples.
 pub fn ofdm_frame_encode<'a, I: Iterator<Item = bool>, T: FourierFloat>(
     ofdm_spec: &OfdmSpec,
+    data_len: usize,
     data_encoder: OfdmDataEncoder<'a, I, T>,
 ) -> OfdmFrame<'a, I, T> {
+    let data_len_encoder = OfdmDataEncoder::new(
+        byte_to_bits(data_len),
+        data_encoder.subcarrier_functions,
+        data_encoder.cyclic_prefix_length,
+    );
+
     ofdm_preamble_encode(ofdm_spec) // Preamble
+        .chain(data_len_encoder.flatten()) // Data bits length
         .chain(data_encoder.flatten()) // Data bits
 }
 
 /// Takes the expected preamble and compares it to the received preamble. Generates a scale factor for each subchannel to fix the gain.
+/// Returns [`None`] if there weren't enough samples for a preamble to exist.
 fn gain_from_preamble<I, T, const CHANNELS_NUM: usize>(
     samples: &mut I,
     mut expected_preamble: Vec<T>,
     cyclic_prefix_len: usize,
-) -> [Complex<T>; CHANNELS_NUM]
+) -> Option<[Complex<T>; CHANNELS_NUM]>
 where
     I: Iterator<Item = T>,
     T: FourierFloat,
@@ -686,8 +647,15 @@ where
         .take(symbol_data_time_len + cyclic_prefix_len)
         .for_each(drop);
 
-    // Determine the fourier coefficients of the expected preamble and the actual preamble coefficients.
+    // Get actual preamble auto-gain samples
     let mut actual_preamble = samples.take(symbol_data_time_len).collect::<Vec<_>>();
+
+    // Check that enough samples existed
+    if actual_preamble.len() < expected_preamble.len() {
+        return None;
+    }
+
+    // Determine the fourier coefficients of the expected preamble and the actual preamble coefficients.
     let actual_coefficients = scaled_real_fft(&mut actual_preamble);
     let expected_coefficients = scaled_real_fft(expected_preamble);
     let mut scale_factors = [Complex::one(); CHANNELS_NUM];
@@ -711,7 +679,7 @@ where
     {
         scale_factors[i] = expected / actual;
     }
-    scale_factors
+    Some(scale_factors)
 }
 
 #[derive(Clone, Debug)]
@@ -748,34 +716,39 @@ where
     T: FourierFloat,
     I: Iterator<Item = bool>,
 {
-    type Item = iter::Chain<
-        iter::Chain<std::vec::IntoIter<T>, std::vec::IntoIter<T>>,
-        iter::Flatten<OfdmDataEncoder<'a, std::vec::IntoIter<bool>, T>>,
-    >;
+    type Item = OfdmFrame<'a, std::vec::IntoIter<bool>, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Count the bits a symbol will transmit.
         // TODO once cell here or initialize in constructor
         let bits_per_data_symbol = self
             .subcarrier_encoders
             .iter()
             .map(|&x| usize::from(x))
             .sum::<usize>();
+        // Get the next chunk of bits that fit in a frame using number of symbols * bits/symbol.
         // TODO this allocation to a vector shouldn't be necessary. Fix by making it a lending iterator.
-        let temp = self
+        let next_data_bits = self
             .bits
             .by_ref()
-            .take(bits_per_data_symbol * self.ofdm_spec.data_symbols)
+            .take(self.ofdm_spec.data_symbols * bits_per_data_symbol)
             .collect::<Vec<_>>();
-        if temp.is_empty() {
+        // If there are no more data bits then there are no more frames.
+        if next_data_bits.is_empty() {
             return None;
         }
+
+        let next_data_bits_len = next_data_bits.len();
         let encoder = OfdmDataEncoder::new(
-            temp.into_iter(),
+            next_data_bits.into_iter(),
             self.subcarrier_encoders,
             self.ofdm_spec.cyclic_prefix_len,
-            self.ofdm_spec.end_bits,
         );
-        Some(ofdm_frame_encode(&self.ofdm_spec, encoder))
+        Some(ofdm_frame_encode(
+            &self.ofdm_spec,
+            next_data_bits_len,
+            encoder,
+        ))
     }
 }
 
@@ -813,33 +786,53 @@ where
     T: FourierFloat,
     I: Iterator<Item = T>,
 {
-    type Item = OfdmDataDecoder<'a, std::vec::IntoIter<T>, T, CHANNELS_NUM>;
+    type Item =
+        iter::Take<iter::Flatten<OfdmDataDecoder<'a, std::vec::IntoIter<T>, T, CHANNELS_NUM>>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Get the expected preamble based on the parameters.
         let expected_preamble = ofdm_preamble_encode(&self.ofdm_spec).collect::<Vec<T>>();
-        let preamble_sample_len = expected_preamble.len();
-        // The extra partial symbol is compensated with a 1 as below.
-        // TODO fix this incorrect behavior. The partial symbol shouldn't be an extra symbol it should be the last in to bring the number of symbols to the correct amount.
-        // This should be fixed in OfdmDataEncoder
-        let data_sample_len = (self.ofdm_spec.data_symbols + 1)
+        // Get the gain factors from the nonzero pseudorandom noise in the preamble.
+        let gain_factors = gain_from_preamble(
+            &mut self.samples,
+            expected_preamble,
+            self.ofdm_spec.cyclic_prefix_len,
+        )?;
+
+        // Get the transmitted data length.
+        let data_len = OfdmDataDecoder::new(
+            self.samples.by_ref(),
+            self.subcarrier_decoders,
+            self.ofdm_spec.cyclic_prefix_len,
+            gain_factors,
+        )
+        .decode(usize::BITS.try_into().unwrap())
+        .bits_to_bytes()
+        .next()
+        .expect("Insufficient samples to extract data length");
+
+        let data_sample_len = (self.ofdm_spec.data_symbols)
             * (self.ofdm_spec.time_symbol_len + self.ofdm_spec.cyclic_prefix_len);
 
         // Get data samples in the frame.
-        // TODO vec allocation might be unnecessary.
+        // TODO vec allocation might be unnecessary. Currently used because `OfdmDataDecoder` requires a 'static iterator for samples.
         let data_samples = self
             .samples
             .by_ref()
-            .take(preamble_sample_len + data_sample_len)
+            .take(data_sample_len)
             .collect::<Vec<_>>();
         if data_samples.is_empty() {
             return None;
         };
 
-        Some(OfdmDataDecoder::build(
-            data_samples.into_iter(),
-            self.subcarrier_decoders,
-            &self.ofdm_spec,
-        ))
+        Some(
+            OfdmDataDecoder::new(
+                data_samples.into_iter(),
+                self.subcarrier_decoders,
+                self.ofdm_spec.cyclic_prefix_len,
+                gain_factors,
+            )
+            .decode(data_len),
+        )
     }
 }

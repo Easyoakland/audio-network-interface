@@ -15,10 +15,11 @@ use dsp::{
         cross_correlation_timing_metric_single_value,
     },
     ofdm::{
-        cross_correlation_to_known_signal, ofdm_frame_encoder, ofdm_preamble_encode,
+        cross_correlation_to_known_signal, ofdm_frame_encode, ofdm_preamble_encode,
         ofdm_premable_auto_correlation_detector, ofdm_premable_cross_correlation_detector,
         OfdmDataDecoder, OfdmDataEncoder, SubcarrierDecoder, SubcarrierEncoder,
     },
+    specs::OfdmSpec,
 };
 use num_complex::Complex;
 use plotters::style::HSLColor;
@@ -55,7 +56,6 @@ fn scratch() -> anyhow::Result<()> {
         bytes_to_bits((0..=255).take(bytes_num)),
         &*subcarriers_encoders,
         480,
-        1,
     );
 
     // Play sound -----------------------------------------------------------------
@@ -104,8 +104,15 @@ fn scratch() -> anyhow::Result<()> {
         // .map(|x| x * 100.0)
         .skip(20_000) // Skip startup samples
         .collect::<Vec<_>>();
-    let tx_preamble = ofdm_preamble_encode(SEED, REPEAT_CNT, ofdm.time_len(), ofdm.cyclic_len())
-        .collect::<Vec<_>>();
+    let ofdm_spec = OfdmSpec {
+        seed: SEED,
+        short_training_repetitions: REPEAT_CNT,
+        time_symbol_len: ofdm.time_len(),
+        cyclic_prefix_len: ofdm.cyclic_len(),
+        first_bin,
+        ..Default::default()
+    };
+    let tx_preamble = ofdm_preamble_encode(&ofdm_spec).collect::<Vec<_>>();
     let data_complex = data
         .clone()
         .into_iter()

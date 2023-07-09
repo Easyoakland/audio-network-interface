@@ -16,8 +16,8 @@ use dsp::{
     bit_byte_conversion::bytes_to_bits,
     carrier_modulation::{bpsk_decode, bpsk_encode, null_decode, null_encode},
     ofdm::{
-        ofdm_preamble_encode, ofdm_premable_cross_correlation_detector, OfdmDataDecoder,
-        OfdmFramesDecoder, OfdmFramesEncoder, SubcarrierDecoder, SubcarrierEncoder,
+        ofdm_preamble_encode, ofdm_premable_cross_correlation_detector, OfdmFramesDecoder,
+        OfdmFramesEncoder, SubcarrierDecoder, SubcarrierEncoder,
     },
     ook_fdm::{OokFdmConfig, OokFdmDecoder},
     specs::{FdmSpec, TransmissionSpec},
@@ -352,10 +352,9 @@ pub fn decode_transmission(
             }
             // Generate transmitted preamble for comparison.
             let tx_preamble = ofdm_preamble_encode(&ofdm_spec).collect::<Vec<_>>();
-            let data_complex = source.clone().collect::<Vec<_>>();
             // Detect start of frame by comparing to reference preamble.
             let Some(packet_start) = ofdm_premable_cross_correlation_detector(
-                &data_complex,
+                &source.clone().collect::<Vec<_>>(),
                 &tx_preamble
                     [..ofdm_spec.time_symbol_len / ofdm_spec.short_training_repetitions],
                 ofdm_spec.cross_correlation_threshold,
@@ -370,7 +369,7 @@ pub fn decode_transmission(
                 ofdm_spec,
             );
             frames_decoder
-                .flat_map(OfdmDataDecoder::decode::<u8, Lsb0>)
+                .flat_map(|x| x.bits_to_bytes::<u8>())
                 .collect()
         }
     };

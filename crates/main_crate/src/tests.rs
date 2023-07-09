@@ -22,7 +22,6 @@ const OFDM_DEFAULT_TRANSMISSION_SPEC: TransmissionSpec = TransmissionSpec::Ofdm(
     cross_correlation_threshold: 0.125,
     data_symbols: 32,
     first_bin: 20,
-    end_bits: 1,
 });
 
 // TODO use:

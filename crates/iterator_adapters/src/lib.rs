@@ -134,7 +134,7 @@ pub trait IteratorAdapter: Iterator {
         Chunks::new(self, chunk_size)
     }
 
-    /// Converts iterator of bool into iterator of u8. If `len % 8 != 0` then the extra will be ignored.
+    /// Converts iterator of bool into iterator of byte sized type. Extra remainder bits will be ignored.
     fn bits_to_bytes<T>(self) -> BitToByte<Self, T>
     where
         Self: Sized + Iterator<Item = bool>,

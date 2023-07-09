@@ -46,7 +46,6 @@ fn ofdm_benchmark(c: &mut Criterion) {
         bit_byte_conversion::bytes_to_bits(iter::repeat(255u8)),
         subcarriers,
         subcarriers.len() / 10,
-        1,
     );
     c.bench_function("ofdm benchmark", |b| b.iter(|| black_box(ofdm.next())));
 }
@@ -64,7 +63,6 @@ fn ofdm_multiframe_benchmark(c: &mut Criterion) {
         cross_correlation_threshold: 0.12,
         data_symbols: 32,
         first_bin: 20,
-        end_bits: 1,
     };
     let mut ofdm =
         OfdmFramesEncoder::new([false, true].into_iter().cycle(), subcarriers, ofdm_spec).flatten();

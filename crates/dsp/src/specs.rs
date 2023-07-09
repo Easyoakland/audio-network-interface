@@ -8,7 +8,7 @@ pub enum TransmissionSpec {
     Fdm(FdmSpec),
 }
 
-#[derive(Args, Clone, Debug)]
+#[derive(Args, Clone, Debug, Default)]
 /// Basic frequency division multiplexing.
 pub struct FdmSpec {
     /// The time per symbol in milliseconds.
@@ -28,7 +28,7 @@ pub struct FdmSpec {
     pub parallel_channels: usize,
 }
 
-#[derive(Args, Clone, Debug)]
+#[derive(Args, Clone, Debug, Default)]
 /// Orthogonal frequency division multiplexing. Commonly used in digital communication such as in Wifi and 4G technology.
 pub struct OfdmSpec {
     /// Seed used for pseudorandom generation.
@@ -60,10 +60,4 @@ pub struct OfdmSpec {
     /// Can't be 0 because dc bin can't tranmit data.
     #[arg(short, long, default_value_t = 20, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
     pub first_bin: usize,
-
-    /// Number of 1 bits that separate the data from the padding 0's
-    // TODO restrict this to be less than the number of bits transmitted per data symbol. >= makes no sense since a full symbol of nothing will be transmitted.
-    // TODO alternatively or additionally correctly fix data_sample_len calculation in frame decoder
-    #[arg(short, long, default_value_t = 1)]
-    pub end_bits: usize,
 }
