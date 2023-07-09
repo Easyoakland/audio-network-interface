@@ -351,13 +351,7 @@ pub fn decode_transmission(
                 subcarriers_decoders[i] = SubcarrierDecoder::Data(bpsk_decode);
             }
             // Generate transmitted preamble for comparison.
-            let tx_preamble = ofdm_preamble_encode(
-                ofdm_spec.seed,
-                ofdm_spec.short_training_repetitions,
-                ofdm_spec.time_symbol_len,
-                ofdm_spec.cyclic_prefix_len,
-            )
-            .collect::<Vec<_>>();
+            let tx_preamble = ofdm_preamble_encode(&ofdm_spec).collect::<Vec<_>>();
             let data_complex = source.clone().collect::<Vec<_>>();
             // Detect start of frame by comparing to reference preamble.
             let Some(packet_start) = ofdm_premable_cross_correlation_detector(

@@ -16,7 +16,7 @@ use std::{
 };
 use stft::{
     fft::{scaled_real_fft, scaled_real_ifft, FourierFloat},
-    frequency_samples_to_time, time_samples_to_frequency,
+    frequency_samples_to_time,
 };
 
 /// Pseudo random noise used in ofdm preamble symbols.
@@ -268,35 +268,26 @@ where
     pub fn build(
         mut samples: I,
         subcarrier_functions: [SubcarrierDecoder<'a, T>; CHANNELS_NUM],
-        cyclic_prefix_length: usize,
-        preamble_seed: u64,
-        preamble_repeat_cnt: usize,
-        end_bits: usize,
+        ofdm_spec: &OfdmSpec,
     ) -> Self {
         assert!(
-            cyclic_prefix_length <= frequency_samples_to_time(subcarrier_functions.len()),
+            ofdm_spec.cyclic_prefix_len <= frequency_samples_to_time(subcarrier_functions.len()),
             "Cyclic prefix can't be longer than the actual symbol."
         );
         let symbol_time_len = frequency_samples_to_time(subcarrier_functions.len());
 
         // Get the gain factors of the nonzero pseudorandom noise symbol.
-        let expected_preamble = ofdm_preamble_encode(
-            preamble_seed,
-            preamble_repeat_cnt,
-            symbol_time_len,
-            cyclic_prefix_length,
-        )
-        .collect();
+        let expected_preamble = ofdm_preamble_encode(ofdm_spec).collect();
         let gain_factors =
-            gain_from_preamble(&mut samples, expected_preamble, cyclic_prefix_length);
+            gain_from_preamble(&mut samples, expected_preamble, ofdm_spec.cyclic_prefix_len);
 
         OfdmDataDecoder {
             scratch_space: vec![T::zero(); symbol_time_len],
             subcarrier_decoders: subcarrier_functions,
             samples,
-            cyclic_prefix_length,
+            cyclic_prefix_length: ofdm_spec.cyclic_prefix_len,
             gain_factors,
-            end_bits,
+            end_bits: ofdm_spec.end_bits,
         }
     }
 
@@ -395,13 +386,13 @@ impl<'a, I: Iterator<Item = D>, D: FourierFloat, const CHANNELS_NUM: usize>
 fn ofdm_short_training_symbol<T: FourierFloat>(
     seed: u64,
     repeat_cnt: usize,
-    training_symbol_len: usize,
+    training_symbol_freq_len: usize,
 ) -> Vec<T> {
     scaled_real_ifft(
-        &mut gen_pseudonoise_sequence(seed, training_symbol_len, (-1..=1).filter(|&x| x != 0))
+        &mut gen_pseudonoise_sequence(seed, training_symbol_freq_len, (-1..=1).filter(|&x| x != 0))
             .enumerate()
             .map(|(i, x)| {
-                if i == 0 || i == training_symbol_len - 1 {
+                if i == 0 || i == training_symbol_freq_len - 1 {
                     (i, Complex::zero())
                 } else {
                     let val = T::from(x).expect("Failed to convert.")
@@ -429,18 +420,18 @@ fn ofdm_short_training_symbol<T: FourierFloat>(
 /// - `cyclic_prefix_len`: The length in time domain of the cyclic prefix.
 fn ofdm_long_training_symbol<T: FourierFloat>(
     seed: u64,
-    training_symbol_len: usize,
+    training_symbol_freq_len: usize,
     cyclic_prefix_len: usize,
 ) -> Vec<T> {
     let raw_time_symbol = scaled_real_ifft(
         &mut gen_pseudonoise_sequence(
             seed.wrapping_add(1),
-            training_symbol_len,
+            training_symbol_freq_len,
             (-1..=1).filter(|&x| x != 0),
         )
         .enumerate()
         .map(|(i, x)| {
-            if i == 0 || i == training_symbol_len - 1 {
+            if i == 0 || i == training_symbol_freq_len - 1 {
                 Complex::zero()
             } else {
                 let val = T::from(x).expect("Failed to convert.")
@@ -468,24 +459,23 @@ fn ofdm_long_training_symbol<T: FourierFloat>(
 /// Autocorrelation can be used on this symbol because of the repetition.
 /// 2. The second symbol is nonzero pseudo random noise on all frequencies.
 /// This allows phase and amplitude corrections at the receiver for all subcarrier frequencies.
-/// # Arguments
-/// - `seed`: Seed for pseudo random noise.
-/// - `repeat_cnt`: Number of repetitions of the small symbol in the overall training symbol.
-/// - `training_symbol_len`: Length of each training sequence in time.
-/// - `cyclic_prefix_len`: The length in time domain of the cyclic prefix.
 /// # Reference
 /// <https://ieeexplore.ieee.org/document/650240>
 pub fn ofdm_preamble_encode<T: FourierFloat>(
-    seed: u64,
-    repeat_cnt: usize,
-    training_symbol_len: usize,
-    cyclic_prefix_len: usize,
-) -> std::iter::Chain<std::vec::IntoIter<T>, std::vec::IntoIter<T>> {
-    let training_symbol_len = time_samples_to_frequency(training_symbol_len);
-    let short = ofdm_short_training_symbol(seed, repeat_cnt, training_symbol_len);
+    ofdm_spec: &OfdmSpec,
+) -> iter::Chain<std::vec::IntoIter<T>, std::vec::IntoIter<T>> {
+    let time_freq_len = stft::time_samples_to_frequency(ofdm_spec.time_symbol_len);
+    let short = ofdm_short_training_symbol(
+        ofdm_spec.seed,
+        ofdm_spec.short_training_repetitions,
+        time_freq_len,
+    );
     // Change seed so two symbols don't autocorrelate. Probably unnecessary.
-    let long =
-        ofdm_long_training_symbol(seed.wrapping_add(1), training_symbol_len, cyclic_prefix_len);
+    let long = ofdm_long_training_symbol(
+        ofdm_spec.seed.wrapping_add(1),
+        time_freq_len,
+        ofdm_spec.cyclic_prefix_len,
+    );
     short.into_iter().chain(long)
 }
 
@@ -667,19 +657,13 @@ type OfdmFrame<'a, I, T> = std::iter::Chain<
     std::iter::Flatten<OfdmDataEncoder<'a, I, T>>,
 >;
 
-/// Generates an iterator of the ofdm preamble and data.
-pub fn ofdm_frame_encoder<I: Iterator<Item = bool>, T: FourierFloat>(
-    seed: u64,
-    repeat_cnt: usize,
-    ofdm_data_encoder: OfdmDataEncoder<'_, I, T>,
-) -> OfdmFrame<'_, I, T> {
-    ofdm_preamble_encode(
-        seed,
-        repeat_cnt,
-        ofdm_data_encoder.time_len(),
-        ofdm_data_encoder.cyclic_prefix_length,
-    )
-    .chain(ofdm_data_encoder.flatten())
+/// Generates an iterator of the ofdm frame's samples.
+pub fn ofdm_frame_encode<'a, I: Iterator<Item = bool>, T: FourierFloat>(
+    ofdm_spec: &OfdmSpec,
+    data_encoder: OfdmDataEncoder<'a, I, T>,
+) -> OfdmFrame<'a, I, T> {
+    ofdm_preamble_encode(ofdm_spec) // Preamble
+        .chain(data_encoder.flatten()) // Data bits
 }
 
 /// Takes the expected preamble and compares it to the received preamble. Generates a scale factor for each subchannel to fix the gain.
@@ -791,11 +775,7 @@ where
             self.ofdm_spec.cyclic_prefix_len,
             self.ofdm_spec.end_bits,
         );
-        Some(ofdm_frame_encoder(
-            self.ofdm_spec.seed,
-            self.ofdm_spec.short_training_repetitions,
-            encoder,
-        ))
+        Some(ofdm_frame_encode(&self.ofdm_spec, encoder))
     }
 }
 
@@ -836,37 +816,30 @@ where
     type Item = OfdmDataDecoder<'a, std::vec::IntoIter<T>, T, CHANNELS_NUM>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO once cell here
-        let preamble_sample_len = ofdm_preamble_encode::<T>(
-            self.ofdm_spec.seed,
-            self.ofdm_spec.short_training_repetitions,
-            self.ofdm_spec.time_symbol_len,
-            self.ofdm_spec.cyclic_prefix_len,
-        )
-        .count();
-        // The extra partial symbol is compinsated with a 1 as below.
+        // Get the expected preamble based on the parameters.
+        let expected_preamble = ofdm_preamble_encode(&self.ofdm_spec).collect::<Vec<T>>();
+        let preamble_sample_len = expected_preamble.len();
+        // The extra partial symbol is compensated with a 1 as below.
         // TODO fix this incorrect behavior. The partial symbol shouldn't be an extra symbol it should be the last in to bring the number of symbols to the correct amount.
-        // This should be fixed the the OfdmDataEncoder
+        // This should be fixed in OfdmDataEncoder
         let data_sample_len = (self.ofdm_spec.data_symbols + 1)
             * (self.ofdm_spec.time_symbol_len + self.ofdm_spec.cyclic_prefix_len);
 
+        // Get data samples in the frame.
         // TODO vec allocation might be unnecessary.
-        let temp = self
+        let data_samples = self
             .samples
             .by_ref()
             .take(preamble_sample_len + data_sample_len)
             .collect::<Vec<_>>();
-        if temp.is_empty() {
+        if data_samples.is_empty() {
             return None;
         };
 
         Some(OfdmDataDecoder::build(
-            temp.into_iter(),
+            data_samples.into_iter(),
             self.subcarrier_decoders,
-            self.ofdm_spec.cyclic_prefix_len,
-            self.ofdm_spec.seed,
-            self.ofdm_spec.short_training_repetitions,
-            self.ofdm_spec.end_bits,
+            &self.ofdm_spec,
         ))
     }
 }
