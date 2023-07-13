@@ -2,7 +2,7 @@
 //! The benchmarks in this file are tests for what can or can not be included in this loop.
 
 use audio_network_interface::constants::REED_SOL_MAX_SHARDS;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use dsp::{
     bit_byte_conversion,
     carrier_modulation::{bpsk_encode, null_encode, ook_encode},
@@ -11,7 +11,7 @@ use dsp::{
 };
 use fec::{reed_solomon::ReedSolomonEncoder, traits::Function};
 use iterator_adapters::IteratorAdapter;
-use std::iter;
+use std::{hint::black_box, iter};
 
 fn create_thread(c: &mut Criterion) {
     c.bench_function("create thread", |b| {

@@ -61,7 +61,7 @@ wasm-bindgen = "0.2.87"
 web-sys = "0.3.64"
 
 [dev-dependencies]
-criterion = "0.4.0"
+criterion = "0.5.1"
 ordered-float = "3.6.0"
 proptest = "1.1.0"
 rand = "0.8.5"
