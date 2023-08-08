@@ -5,13 +5,21 @@ This project was created primarily for me to learn and understand the concepts o
 If you are looking for a mature digital signal processing library take a look at [liquid-dsp](https://github.com/jgaeddert/liquid-dsp) or [quiet](https://github.com/quiet/quiet) instead.
 
 # Usage
+## Cli
 `cargo run --release --bin transceiver_cli -- <OPTIONS>`
 
-or
-
+The cli has help information if `-h` or `--help` or `help` are used as options.
+## Native Gui
 `cargo run --release --bin transceiver_gui -F gui`
 
-The cli has help information if `-h` or `--help` or `help` are used as options.
+The gui has help information on hover.
+## Wasm Gui
+Install [`trunk`](trunkrs.dev/) then run
+`trunk serve`.
+
+Hosted static website is planned.
+
+The gui has help information on hover.
 
 # Goals/Roadmap
 - [ ] Physical layer
@@ -44,9 +52,13 @@ The cli has help information if `-h` or `--help` or `help` are used as options.
         - [ ] n point
     - [ ] Different sampling frequency of transmitter vs receiver
     - [ ] Realtime
+        - Faster than realtime (~6-15x) but don't yet have option to decode direct from microphone.
     - [x] From file
 - [ ] Interface
     - [x] Command line interface (cli)
     - [x] Native gui
     - [ ] WASM static website
+        - Note: Not great because poor AudioWorklet and/or Multithreading in Wasm support. The single-threaded [implementation in cpal](https://github.com/RustAudio/cpal/issues/780) is sometimes too choppy/imprecise causing phase to rapidly become incorrect. Also see [here](https://github.com/bevyengine/bevy/issues/4078) for a good summary of the state of things.
+        - [x] Local server.
+        - [ ] Public site.
     - [ ] Operating system network interface/adapter

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Wasm test</title>
+    </head>
+    <style>
+        /* Allow canvas to fill entire web page: */
+        html,
+        body {
+            overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+    <body>
+        <link data-trunk rel="rust" data-type="main" href="crates/main_crate/Cargo.toml" data-wasm-opt="4"
+            data-bin="wasm_main" data-cargo-features="gui" />
+
+        <canvas id="audio_network_interface" style="width: 1920px; height: 800px; position: absolute; top: 0%;"
+            width="1920" height="800"></canvas>
+    </body>
+</html>

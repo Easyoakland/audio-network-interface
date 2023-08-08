@@ -5,6 +5,6 @@ use klask::Settings;
 
 fn main() {
     klask::run_derived_native(Settings::default(), |opt| {
-        binary_logic::run(opt).unwrap();
+        futures_lite::future::block_on(binary_logic::run(opt)).unwrap();
     });
 }

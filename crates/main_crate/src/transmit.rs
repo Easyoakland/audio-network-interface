@@ -29,13 +29,20 @@ use fec::{
     traits::Function,
 };
 use iterator_adapters::IteratorAdapter;
-use log::{error, trace, warn};
+use log::{error, info, trace, warn};
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 use std::{
+    future::Future,
     io,
     iter::Iterator,
     marker::{Send, Sync},
-    sync::mpsc::{self, RecvError, SyncSender, TrySendError},
-    time::{Duration, Instant},
+    sync::{
+        mpsc::{self, Receiver, RecvError, Sender, TryRecvError},
+        OnceLock,
+    },
+    task::{Poll, Waker},
+    time::Duration,
 };
 use stft::{fft::window_fn, time_samples_to_frequency, SpecCompute, WindowLength};
 use thiserror::Error;
@@ -67,21 +74,27 @@ fn run<T>(
     device: &Device,
     config: &StreamConfig,
     mut signal: impl Iterator<Item = f32> + Send + Sync + 'static,
-    finished_indicator_channel: SyncSender<()>,
-) -> Result<MustUse<Stream>, StreamError>
+) -> Result<AsyncStream, StreamError>
 where
     T: SizedSample + FromSample<f32>,
 {
     let channels = config.channels as usize;
+    let is_done = mpsc::channel();
+    let waker = mpsc::channel::<Waker>();
+    let once = OnceLock::new();
 
     let mut next_value = move || match signal.next() {
         Some(x) => x,
         None => {
-            // Indicate end of signal if channel to notify exists.
-            match finished_indicator_channel.try_send(()) {
-                Ok(()) => trace!("Finished playing stream."),
-                // Full error only occurs if already sent signal.
-                Err(TrySendError::Full(())) => (),
+            // Indicate end of signal.
+            match is_done.0.send(()) {
+                Ok(()) => {
+                    once.get_or_init(|| trace!("Finished playing stream."));
+                    if let Ok(waker) = waker.1.try_recv() {
+                        waker.wake()
+                    };
+                }
+                // Error only occurs if channel receiver end has closed.
                 Err(e) => error!("Error submitting end of signal: {e}"),
             }
             Sample::EQUILIBRIUM
@@ -100,15 +113,49 @@ where
     )?;
     trace!("Playing stream");
     stream.play()?;
-    Ok(MustUse(stream))
+    Ok(AsyncStream::new(stream, waker.0, is_done.1))
 }
 
-/// Returns a [`Stream`] that plays sound samples until the returned stream is dropped.
-/// If the iterator runs out it plays silence (equilibrium samples) and sends `()` through the channel.
+/// Future that returns [`Poll::Pending`] until the [`Stream`] runs out of samples.
+#[must_use = "Stream will play until dropped"]
+pub struct AsyncStream {
+    /// Future holds the stream so it continues playing. When the future is dropped so is the stream.
+    _stream: Stream,
+    /// Send waker to stream through this channel. Stream decides when its done.
+    waker_channel: Sender<Waker>,
+    /// Stream lets this future know when it is done through this channel.
+    is_done: Receiver<()>,
+}
+
+impl AsyncStream {
+    pub fn new(stream: Stream, waker_channel: Sender<Waker>, is_done: Receiver<()>) -> Self {
+        AsyncStream {
+            _stream: stream,
+            waker_channel,
+            is_done,
+        }
+    }
+}
+
+impl Future for AsyncStream {
+    type Output = Result<(), RecvError>;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        // Try to send waker to the stream. Don't bother checking if successful. The stream will wake when finished.
+        let _ = self.waker_channel.send(cx.waker().clone());
+        match self.is_done.try_recv() {
+            Ok(()) => Poll::Ready(Ok(())),
+            Err(TryRecvError::Disconnected) => Poll::Ready(Err(RecvError)),
+            Err(TryRecvError::Empty) => Poll::Pending,
+        }
+    }
+}
+
+/// Returns an [`AsyncStream`] that plays sound samples until dropped.
+/// If the iterator runs out of samples it plays silence (equilibrium samples) and returns a [`Poll::Ready(())`].
 pub fn play_stream(
     signal: impl Iterator<Item = f32> + Sync + Send + 'static,
-    tx: SyncSender<()>,
-) -> Result<MustUse<Stream>, StreamError> {
+) -> Result<AsyncStream, StreamError> {
     let host = cpal::default_host();
     let device = host
         .default_output_device()
@@ -127,28 +174,17 @@ pub fn play_stream(
 
     // Select the correct data type depending on supported format and then runs.
     match config.sample_format() {
-        SampleFormat::I8 => run::<i8>(&device, &config.into(), signal, tx),
-        SampleFormat::I16 => run::<i16>(&device, &config.into(), signal, tx),
-        SampleFormat::I32 => run::<i32>(&device, &config.into(), signal, tx),
-        SampleFormat::I64 => run::<i64>(&device, &config.into(), signal, tx),
-        SampleFormat::U8 => run::<u8>(&device, &config.into(), signal, tx),
-        SampleFormat::U16 => run::<u16>(&device, &config.into(), signal, tx),
-        SampleFormat::U32 => run::<u32>(&device, &config.into(), signal, tx),
-        SampleFormat::U64 => run::<u64>(&device, &config.into(), signal, tx),
-        SampleFormat::F32 => run::<f32>(&device, &config.into(), signal, tx),
-        SampleFormat::F64 => run::<f64>(&device, &config.into(), signal, tx),
+        SampleFormat::I8 => run::<i8>(&device, &config.into(), signal),
+        SampleFormat::I16 => run::<i16>(&device, &config.into(), signal),
+        SampleFormat::I32 => run::<i32>(&device, &config.into(), signal),
+        SampleFormat::I64 => run::<i64>(&device, &config.into(), signal),
+        SampleFormat::U8 => run::<u8>(&device, &config.into(), signal),
+        SampleFormat::U16 => run::<u16>(&device, &config.into(), signal),
+        SampleFormat::U32 => run::<u32>(&device, &config.into(), signal),
+        SampleFormat::U64 => run::<u64>(&device, &config.into(), signal),
+        SampleFormat::F32 => run::<f32>(&device, &config.into(), signal),
+        SampleFormat::F64 => run::<f64>(&device, &config.into(), signal),
         sample_format => panic!("Unsupported sample format '{sample_format}'"),
-    }
-}
-
-/// Annotates type as must use.
-/// Useful when the inner type (eg. of a result) must be used even if the outer type is used (eg. result contains important data that must bind).
-#[must_use = "The inner type must be used."]
-pub struct MustUse<T>(T);
-
-impl<T> From<T> for MustUse<T> {
-    fn from(v: T) -> Self {
-        Self(v)
     }
 }
 
@@ -165,16 +201,6 @@ impl From<RecvError> for BlockingStreamError {
     fn from(_: RecvError) -> Self {
         BlockingStreamError::RecvError
     }
-}
-
-/// Plays a signal and blocks until it is finished playing.
-pub fn play_stream_blocking(
-    signal: impl Iterator<Item = f32> + Send + Sync + 'static,
-) -> Result<(), BlockingStreamError> {
-    let (tx, rx) = mpsc::sync_channel(0);
-    let _stream = play_stream(signal, tx)?;
-    // Block while waiting for end signal.
-    rx.recv().map_err(Into::into)
 }
 
 /// Generates an FDM ook transmission.
@@ -219,14 +245,15 @@ pub enum EncodingError<E> {
 }
 
 /// Logic for sending a data transmission to a data sink.
-pub fn encode_transmission<E>(
+pub async fn encode_transmission<O, E, F>(
     fec_spec: FecSpec,
     transmission_spec: TransmissionSpec,
     bytes: impl DynCloneIterator<u8> + Clone + 'static,
-    mut sink: impl FnMut(Box<dyn DynCloneIterator<f32>>) -> Result<(), E>,
-) -> Result<(), EncodingError<E>>
+    mut sink: impl FnMut(Box<dyn DynCloneIterator<f32>>) -> Result<F, E>,
+) -> Result<O, EncodingError<E>>
 where
     E: Sync + Send + std::error::Error + 'static,
+    F: Future<Output = O>,
 {
     {
         let reed_encoder = ReedSolomonEncoder {
@@ -258,6 +285,8 @@ where
             .sample_rate()
             .0;
 
+        info!("Output device sample rate: {sample_rate}Hz. Record at this sample rate (preferred) or higher.");
+
         // Encode appropriately.
         let encoded_signal: Box<dyn DynCloneIterator<f32>> = match transmission_spec {
             TransmissionSpec::Fdm(fdm) => {
@@ -282,12 +311,16 @@ where
         };
 
         // Play `encoded_signal`.
+        #[cfg(not(target_arch = "wasm32"))]
         let start = Instant::now();
-        sink(encoded_signal)?;
-        let end = Instant::now();
-        trace!("Played stream for {:?}", (end - start));
+        let res = sink(encoded_signal)?.await;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let end = Instant::now();
+            trace!("Played stream for {:?}", (end - start));
+        }
 
-        Ok(())
+        Ok(res)
     }
 }
 

@@ -1,16 +1,38 @@
 use anyhow::Context;
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
+#[cfg(not(target_arch = "wasm32"))]
+use std::io::Read;
 use std::{
     fs::File,
-    io::{BufReader, BufWriter, Bytes, Read, Write},
+    io::{BufWriter, Write},
     path::Path,
 };
 
 /// Read file to byte iterator.
-pub fn read_file_bytes(file: &Path) -> anyhow::Result<Bytes<BufReader<File>>> {
-    let file_handle = File::open(file)?;
-    let reader = BufReader::new(file_handle);
-    Ok(reader.bytes())
+pub async fn read_file_bytes(
+    file: &Path,
+) -> anyhow::Result<impl Iterator<Item = Result<u8, std::io::Error>> + core::fmt::Debug> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let file_handle = File::open(file)?;
+        let reader = std::io::BufReader::new(file_handle);
+        Ok(reader.bytes())
+    }
+    // Can't read file paths normally in wasm. Instead create an async dialogue that reads a file to memory.
+    #[cfg(target_arch = "wasm32")]
+    {
+        Ok(rfd::AsyncFileDialog::new()
+            .pick_file()
+            .await
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                format!("File dialogue closed while picking \"{}\"", file.display()),
+            ))?
+            .read()
+            .await
+            .into_iter()
+            .map(Ok))
+    }
 }
 
 /// Write byte slice to specified file.
@@ -24,7 +46,8 @@ pub fn write_file_bytes(file: &Path, data: &[u8]) -> anyhow::Result<()> {
 /// Read data from a wav file.
 pub fn read_wav(file: &Path) -> anyhow::Result<(WavSpec, Vec<f64>)> {
     // The WAV file to decode.
-    let mut reader = WavReader::open(file).context("Invalid wav file")?;
+    let mut reader =
+        WavReader::open(file).with_context(|| format!("Invalid wav file {}", file.display()))?;
     let spec = reader.spec();
     log::trace!("Spec: {:?}", reader.spec());
     // Select correct format representation.

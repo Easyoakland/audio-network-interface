@@ -12,8 +12,8 @@ fn main() -> Result<(), anyhow::Error> {
     simple_logger::init_with_level(opt.log_opt.log_level).unwrap();
 
     // Read in files.
-    let input = read_file_bytes(&opt.file_in.in_file)?;
-    let output = read_file_bytes(&opt.file_out.out_file)?;
+    let input = futures_lite::future::block_on(read_file_bytes(&opt.file_in.in_file))?;
+    let output = futures_lite::future::block_on(read_file_bytes(&opt.file_out.out_file))?;
 
     // Count number of times each bit is different.
     let mut errors = [0u32; 8];

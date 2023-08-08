@@ -6,5 +6,5 @@ use clap::Parser;
 fn main() -> anyhow::Result<()> {
     // Handle commandline arguments.
     let opt = TransmissionCli::parse();
-    binary_logic::run(opt)
+    futures_lite::future::block_on(binary_logic::run(opt))
 }

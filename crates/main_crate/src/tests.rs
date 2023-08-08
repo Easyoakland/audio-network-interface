@@ -40,15 +40,15 @@ fn simulated_transmit_receive(
     trace!("Transmitting bytes {bytes:?}");
 
     // Encode to sink.
-    encode_transmission(
+    futures_lite::future::block_on(encode_transmission(
         fec_spec.clone(),
         transmit_spec.clone(),
         bytes.clone(),
         |x| {
             channel.push(x);
-            Ok::<_, Infallible>(())
+            Ok::<_, Infallible>(core::future::ready(()))
         },
-    )
+    ))
     .unwrap();
 
     // Decode from sink.
@@ -89,10 +89,10 @@ proptest! {
             start_freq,
             parallel_channels
         };
-        encode_transmission(FEC_DEFAULT_SPEC, TransmissionSpec::Fdm(fdm_spec), 0..=255, |x| {
+        futures_lite::future::block_on(encode_transmission(FEC_DEFAULT_SPEC, TransmissionSpec::Fdm(fdm_spec), 0..=255, |x| {
             drop(x);
-            Ok::<_, Infallible>(())
-        }).unwrap();
+            Ok::<_, Infallible>(core::future::ready(()))
+        })).unwrap();
     }
 
     #[test]
@@ -111,15 +111,15 @@ proptest! {
 
 #[test]
 fn simulated_transmit_ofdm() {
-    encode_transmission(
+    futures_lite::future::block_on(encode_transmission(
         FEC_DEFAULT_SPEC,
         OFDM_DEFAULT_TRANSMISSION_SPEC,
         0..=255,
         |x| {
             drop(x);
-            Ok::<_, Infallible>(())
+            Ok::<_, Infallible>(core::future::ready(()))
         },
-    )
+    ))
     .unwrap();
 }
 

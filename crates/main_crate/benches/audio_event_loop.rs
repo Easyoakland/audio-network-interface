@@ -15,7 +15,7 @@ use std::{hint::black_box, iter};
 
 fn create_thread(c: &mut Criterion) {
     c.bench_function("create thread", |b| {
-        b.iter(|| std::thread::spawn(|| drop(black_box(0))))
+        b.iter(|| std::thread::spawn(|| black_box(0)))
     });
 }
 

@@ -4,23 +4,37 @@ use crate::{
 };
 use anyhow::Context;
 use log::info;
+#[cfg(target_arch = "wasm32")]
+use log::{Level, LevelFilter};
 use std::io;
 
-pub fn run(opt: TransmissionCli) -> anyhow::Result<()> {
+pub async fn run(opt: TransmissionCli) -> anyhow::Result<()> {
     // Init logging.
+    #[cfg(not(target_arch = "wasm32"))]
     simple_logger::init_with_level(opt.log_opt.log_level)?;
+    // TODO switch to custom tracing subscriber impl with klask so output is displayed in gui.
+    #[cfg(target_arch = "wasm32")]
+    eframe::WebLogger::init(match opt.log_opt.log_level {
+        Level::Error => LevelFilter::Error,
+        Level::Warn => LevelFilter::Warn,
+        Level::Info => LevelFilter::Info,
+        Level::Debug => LevelFilter::Debug,
+        Level::Trace => LevelFilter::Trace,
+    })
+    .ok();
 
     match opt.transceiver_opt {
-        TransceiverOpt::Transmit(transmit_opt) => transmit_from_file(transmit_opt),
+        TransceiverOpt::Transmit(transmit_opt) => transmit_from_file(transmit_opt).await,
         TransceiverOpt::Receive(receive_opt) => receive_from_file(receive_opt),
     }
 }
 
 /// Transmit from file main logic.
-pub fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
+pub async fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
     // Read file bytes.
     let bytes = file_io::read_file_bytes(&opt.in_file.in_file)
-        .with_context(|| format!("Opening {}", opt.in_file.in_file.display()))?
+        .await
+        .with_context(|| format!("Opening file {}", opt.in_file.in_file.display()))?
         .collect::<Result<Vec<u8>, io::Error>>()
         .context("Reading bytes from file.")?
         .into_iter();
@@ -29,8 +43,10 @@ pub fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
         opt.fec_spec,
         opt.transmission_spec,
         bytes,
-        transmit::play_stream_blocking,
+        transmit::play_stream,
     )
+    .await
+    .context("error building stream")?
     .map_err(Into::into)
 }
 
