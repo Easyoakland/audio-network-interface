@@ -1,2 +1,7 @@
 [workspace]
 members = ["crates/*"]
+
+[profile.release]
+#codegen-units = 1 # 0.1Mb improvement. slower compilation.
+#lto = "fat" # 0.1Mb improvement. slower compilation.
+#opt-level = "z" # 0.5 Mb improvement. slower compilation and performance.

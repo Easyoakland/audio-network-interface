@@ -1,5 +1,6 @@
 use crate::{
     args::{ReceiveOpt, TransceiverOpt, TransmissionCli, TransmitOpt},
+    constants::SKIPPED_STARTUP_SAMPLES,
     file_io, transmit,
 };
 use anyhow::Context;
@@ -61,11 +62,12 @@ pub fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
     })?;
 
     // Decode the file's sound transmission.
+    // TODO `skip while sample == 0.0` instead of hardcoded skipped samples.
     let bytes = transmit::decode_transmission(
         opt.fec_spec,
         opt.transmission_spec,
         data.into_iter().map(|x| x as f32),
-        20_000,
+        SKIPPED_STARTUP_SAMPLES,
         spec.sample_rate as f32,
     )?;
 

@@ -188,21 +188,6 @@ pub fn play_stream(
     }
 }
 
-/// Errors that can happen while blocking on building or playing a stream.
-#[derive(Error, Debug)]
-pub enum BlockingStreamError {
-    #[error("Stream Error: {0}")]
-    StreamError(#[from] StreamError),
-    #[error("Stream send half disconnected before notifying finished playing")]
-    RecvError,
-}
-
-impl From<RecvError> for BlockingStreamError {
-    fn from(_: RecvError) -> Self {
-        BlockingStreamError::RecvError
-    }
-}
-
 /// Generates an FDM ook transmission.
 pub fn encode_fdm(
     fdm_spec: FdmSpec,
@@ -339,11 +324,11 @@ pub fn decode_transmission(
     fec_spec: FecSpec,
     transmission_spec: TransmissionSpec,
     source: impl DynCloneIterator<f32> + Clone,
-    startup_samples_to_skip: usize,
+    skipped_startup_samples: usize,
     sample_rate: f32,
 ) -> Result<Vec<u8>, DecodingError> {
     // Skip startup samples
-    let source = source.skip(startup_samples_to_skip);
+    let source = source.skip(skipped_startup_samples);
 
     // Get data using correct method.
     let bits: BitVec<u8, Lsb0> = match transmission_spec {
