@@ -55,7 +55,7 @@ pub struct FecSpec {
     pub parity_shards: usize,
 }
 
-/// Encoding and transmitting a transmission.
+/// Encoding and transmitting a signal.
 #[derive(Args, Clone)]
 pub struct TransmitOpt {
     #[command(flatten)]
@@ -69,7 +69,7 @@ pub struct TransmitOpt {
     pub transmission_spec: TransmissionSpec,
 }
 
-/// Receiving and decoding a transmission.
+/// Receiving and decoding a signal.
 #[derive(Args, Clone)]
 pub struct ReceiveOpt {
     #[command(flatten)]
@@ -92,9 +92,27 @@ pub enum TransceiverOpt {
     Receive(ReceiveOpt),
 }
 
-/// Data transmission over audio.
 #[derive(Parser, Clone)]
-#[command(version)]
+// FIXME klask should render long about in gui on hover`
+// default
+#[doc = concat!(include_str!("about.md"), "\n\n",
+    include_str!("../../../UsageInstructions.md"))]
+#[command(version, about = include_str!("about.md"),
+    long_about = concat!(include_str!("about.md"), "\n\n",
+    include_str!("../../../UsageInstructions.md")))]
+// cli about
+#[cfg_attr(all(not(target_arch = "wasm32"), not(feature = "gui")), command(
+    long_about = concat!(include_str!("about.md"), "\n\n",
+    include_str!("../../../UsageInstructions.md"))))]
+// gui about
+#[cfg_attr(all(not(target_arch = "wasm32"), feature = "gui"), command(
+    about = concat!(include_str!("about.md"), "\n\n",
+    include_str!("../../../UsageInstructions.md"))))]
+// wasm about
+#[cfg_attr(target_arch = "wasm32", command(
+    about = concat!(include_str!("about.md"), "\n",
+    "UX and perf is better on native version due to wasm limitations.", "\n\n",
+    include_str!("../../../UsageInstructions.md"))))]
 pub struct TransmissionCli {
     #[command(flatten)]
     pub log_opt: LoggingOpt,

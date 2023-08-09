@@ -2,22 +2,24 @@ Transmit data over audio.
 
 This project was created primarily for me to learn and understand the concepts of digital communications.
 
-If you are looking for a mature digital signal processing library take a look at [liquid-dsp](https://github.com/jgaeddert/liquid-dsp) or [quiet](https://github.com/quiet/quiet) instead.
+If you are looking for a mature digital signal processing library take a look at [liquid-dsp](https://github.com/jgaeddert/liquid-dsp) or [quiet](https://github.com/quiet/quiet) instead. Although, it does appear at least equal to the efficacy of [quiet-js](https://github.com/quiet/quiet-js)
 
 # Usage
-## Cli
+[Usage Instructions Overview](UsageInstructions.md)
+## Run Instructions
+### Cli
 `cargo run --release --bin transceiver_cli -- <OPTIONS>`
 
 The cli has help information if `-h` or `--help` or `help` are used as options.
-## Native Gui
+### Native Gui
 `cargo run --release --bin transceiver_gui -F gui`
 
 The gui has help information on hover.
-## Wasm Gui
-Install [`trunk`](trunkrs.dev/) then run
-`trunk serve`.
+### Wasm Gui
+Hosted demo at https://easyoakland.github.io/audio-network-interface/
 
-Hosted static website is planned.
+To run locally: Install [`trunk`](trunkrs.dev/) then run
+`trunk serve --release`. You may need to install [wasm-opt](https://github.com/WebAssembly/binaryen) first.
 
 The gui has help information on hover.
 
@@ -57,8 +59,8 @@ The gui has help information on hover.
 - [ ] Interface
     - [x] Command line interface (cli)
     - [x] Native gui
-    - [ ] WASM static website
+    - [x] WASM static website
         - Note: Not great because poor AudioWorklet and/or Multithreading in Wasm support. The single-threaded [implementation in cpal](https://github.com/RustAudio/cpal/issues/780) is sometimes too choppy/imprecise causing phase to rapidly become incorrect. Also see [here](https://github.com/bevyengine/bevy/issues/4078) for a good summary of the state of things.
         - [x] Local server.
-        - [ ] Public site.
+        - [x] Public site.
     - [ ] Operating system network interface/adapter
