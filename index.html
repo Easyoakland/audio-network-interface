@@ -1,0 +1,23 @@
+<!DOCTYPE html><html><head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Audio Network Interface</title>
+        <style>
+            /* Allow canvas to fill entire web page: */
+            html,
+            body {
+                overflow: hidden;
+                margin: 0 !important;
+                padding: 0 !important;
+                height: 100%;
+                width: 100%;
+            }
+        </style>
+    
+<link rel="preload" href="/audio-network-interface/wasm_main-64a6d16c02b748fe_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/audio-network-interface/wasm_main-64a6d16c02b748fe.js"></head>
+    <body>
+        <script type="module">import init from '/audio-network-interface/wasm_main-64a6d16c02b748fe.js';init('/audio-network-interface/wasm_main-64a6d16c02b748fe_bg.wasm');</script>
+        <canvas id="audio_network_interface" "=""></canvas>
+    
+</body></html>
