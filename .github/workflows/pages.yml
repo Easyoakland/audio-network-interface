@@ -1,0 +1,36 @@
+name: Pages
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    # - name: Dump github context
+    #   run:   echo "$GITHUB_CONTEXT"
+    #   shell: bash
+    #   env:
+    #     GITHUB_CONTEXT: ${{ toJson(github) }}
+    - name: Setup | Checkout
+      uses: actions/checkout@v3
+    - name: Setup wasm32 target
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+    - name: Download trunk
+      uses: taiki-e/install-action@v2
+      with:
+        tool: trunk
+    - name: Build
+      run: trunk build --release --public-url ${{ github.event.repository.name }}
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./dist
