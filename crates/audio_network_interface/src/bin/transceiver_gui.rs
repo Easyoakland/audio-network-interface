@@ -5,7 +5,14 @@ use audio_network_interface::binary_logic;
 use klask::Settings;
 
 fn main() {
-    klask::run_derived_native(Settings::default(), |opt| {
-        futures_lite::future::block_on(binary_logic::run(opt)).unwrap();
-    });
+    klask::run_derived_native(
+        {
+            let mut settings = Settings::default();
+            settings.prefer_long_about = true;
+            settings
+        },
+        |opt| {
+            futures_lite::future::block_on(binary_logic::run(opt)).unwrap();
+        },
+    );
 }
