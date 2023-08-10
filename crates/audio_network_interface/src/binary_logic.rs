@@ -26,7 +26,7 @@ pub async fn run(opt: TransmissionCli) -> anyhow::Result<()> {
 
     match opt.transceiver_opt {
         TransceiverOpt::Transmit(transmit_opt) => transmit_from_file(transmit_opt).await,
-        TransceiverOpt::Receive(receive_opt) => receive_from_file(receive_opt),
+        TransceiverOpt::Receive(receive_opt) => receive_from_file(receive_opt).await,
     }
 }
 
@@ -52,14 +52,16 @@ pub async fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
 }
 
 /// Receive from file main logic.
-pub fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
+pub async fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
     // Read in wav file.
-    let (spec, data) = file_io::read_wav(&opt.in_file.in_file).with_context(|| {
-        format!(
-            "Opening {} for reading wav contents",
-            opt.in_file.in_file.display()
-        )
-    })?;
+    let (spec, data) = file_io::read_wav(&opt.in_file.in_file)
+        .await
+        .with_context(|| {
+            format!(
+                "Opening {} for reading wav contents",
+                opt.in_file.in_file.display()
+            )
+        })?;
 
     // Decode the file's sound transmission.
     // TODO `skip while sample == 0.0` instead of hardcoded skipped samples.
