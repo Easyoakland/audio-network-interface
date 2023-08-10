@@ -41,9 +41,9 @@ The gui has help information on hover.
             - [x] Coarse timing estimation
                 - [x] Autocorrelation
                 - [x] Cross-correlation
-            - [ ] Precise timing estimation
-                - [ ] Pilot Symbol
-                - [ ] Pilot Channel
+        - [ ] Precise timing estimation
+            - [ ] Pilot Symbol
+            - [ ] Pilot Channel
     - [ ] Quadrature Phase Shift Keying ([QPSK](https://en.wikipedia.org/wiki/Phase-shift_keying#Quadrature_phase-shift_keying_(QPSK)))
         - [x] bpsk (2 point)
         - [ ] qpsk (4 point)

@@ -22,6 +22,7 @@ pub async fn read_file_bytes(
     #[cfg(target_arch = "wasm32")]
     {
         Ok(rfd::AsyncFileDialog::new()
+            .set_title(&file.display().to_string())
             .pick_file()
             .await
             .ok_or(std::io::Error::new(
