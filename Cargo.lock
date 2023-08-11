@@ -2259,13 +2259,14 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "klask"
 version = "1.0.0"
-source = "git+https://github.com/Easyoakland/klask#456bb6e9c22106f4308a1ce5a04d9223212576a1"
+source = "git+https://github.com/Easyoakland/klask#aff57301d9c0a8af092913892a55c025d2c10fac"
 dependencies = [
  "cansi",
  "clap",
  "eframe",
  "futures",
  "linkify",
+ "log",
  "rfd",
  "thiserror",
  "uuid",

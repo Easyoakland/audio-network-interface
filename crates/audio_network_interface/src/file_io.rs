@@ -45,11 +45,11 @@ pub fn write_file_bytes(file: &Path, data: &[u8]) -> anyhow::Result<()> {
         let mut writer = BufWriter::new(file_handle);
         writer.write_all(data)?;
     }
-    // TODO write to file instead of debug logging
+    // TODO write to file instead of logging
     #[cfg(target_arch = "wasm32")]
     {
         info!(
-            "Writing to {}: {:?}",
+            "Writing to '{}': {:?}",
             file.display(),
             data.iter().map(|&x| x as char).collect::<String>()
         )

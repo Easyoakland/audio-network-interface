@@ -13,16 +13,14 @@ pub async fn run(opt: TransmissionCli) -> anyhow::Result<()> {
     // Init logging.
     #[cfg(not(target_arch = "wasm32"))]
     simple_logger::init_with_level(opt.log_opt.log_level)?;
-    // TODO switch to custom tracing subscriber impl with klask so output is displayed in gui.
     #[cfg(target_arch = "wasm32")]
-    eframe::WebLogger::init(match opt.log_opt.log_level {
+    klask::logger::Logger::set_max_level(match opt.log_opt.log_level {
         Level::Error => LevelFilter::Error,
         Level::Warn => LevelFilter::Warn,
         Level::Info => LevelFilter::Info,
         Level::Debug => LevelFilter::Debug,
         Level::Trace => LevelFilter::Trace,
-    })
-    .ok();
+    });
 
     match opt.transceiver_opt {
         TransceiverOpt::Transmit(transmit_opt) => transmit_from_file(transmit_opt).await,
@@ -77,7 +75,10 @@ pub async fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
     let out_path = &opt.out_file.out_file;
     file_io::write_file_bytes(out_path, &bytes)
         .with_context(|| format!("Writing to file {}.", out_path.display()))?;
-    info!("Saved decoded file to {}", opt.out_file.out_file.display());
+    info!(
+        "Saved decoded file to '{}'",
+        opt.out_file.out_file.display()
+    );
 
     Ok(())
 }

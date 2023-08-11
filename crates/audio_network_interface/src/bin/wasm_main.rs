@@ -20,5 +20,4 @@ fn main() {
                 .expect("Unhandled exception when attempting to transmit file")
         },
     );
-    log::info!("test");
 }
