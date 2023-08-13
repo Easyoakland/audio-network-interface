@@ -7,7 +7,10 @@ use std::{
     fs::File,
     io::{BufWriter, Read, Write},
 };
-use std::{io, path::Path};
+use std::{
+    io::{self, Cursor},
+    path::Path,
+};
 
 /// Read file to byte iterator.
 pub async fn read_file_bytes(
@@ -85,17 +88,19 @@ pub async fn read_wav(file: &Path) -> anyhow::Result<(WavSpec, Vec<f64>)> {
 }
 
 /// Write data to wav file.
-pub fn write_wav(file: &Path, samples: impl Iterator<Item = f32>) -> Result<(), hound::Error> {
+pub fn write_wav(file: &Path, samples: impl Iterator<Item = f32>) -> anyhow::Result<()> {
     let spec = WavSpec {
         channels: 1,
         sample_rate: 48000,
         bits_per_sample: 32,
         sample_format: SampleFormat::Float,
     };
-    let mut writer = WavWriter::create(file, spec)?;
+    let mut memory_writer = Cursor::new(Vec::new());
+    let mut writer = WavWriter::new(&mut memory_writer, spec)?;
     for sample in samples {
         writer.write_sample(sample)?;
     }
     writer.finalize()?;
+    write_file_bytes(file, &memory_writer.into_inner())?;
     Ok(())
 }
