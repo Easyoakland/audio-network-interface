@@ -1,5 +1,5 @@
 use crate::ofdm::ofdm_preamble_encode;
-use clap::{builder::RangedU64ValueParser, Args, Subcommand};
+use clap::{builder::RangedU64ValueParser, Args, Parser, Subcommand};
 use std::ops::Range;
 use stft::fft::FourierFloat;
 
@@ -11,7 +11,7 @@ pub enum TransmissionSpec {
     Fdm(FdmSpec),
 }
 
-#[derive(Args, Clone, Debug, Default)]
+#[derive(Parser, Clone, Debug, Default)]
 /// Basic frequency division multiplexing.
 pub struct FdmSpec {
     /// The time per symbol in milliseconds.
