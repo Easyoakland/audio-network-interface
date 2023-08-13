@@ -21,7 +21,7 @@ rand_core = "0.6.4"
 rand_pcg = "0.3.1"
 stft = { path = "../stft" }
 
-[target.wasm32-unknown-unknown.dependencies]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2.10", features = ["js"] }
 
 [dev-dependencies]

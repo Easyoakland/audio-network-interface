@@ -61,6 +61,10 @@ pub struct TransmitOpt {
     #[command(flatten)]
     pub in_file: FileInOpt,
 
+    /// The file to output to. If not provided outputs audio device.
+    #[arg(value_hint = ValueHint::FilePath)]
+    pub out_file: Option<PathBuf>,
+
     /// The forward error correction information
     #[command(flatten)]
     pub fec_spec: FecSpec,

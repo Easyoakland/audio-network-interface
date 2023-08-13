@@ -1,6 +1,6 @@
 use log::info;
 use num_traits::Zero;
-use plotters::prelude::*;
+use plotters::{prelude::*, style::SizeDesc};
 use std::path::Path;
 use stft::Stft;
 
@@ -217,7 +217,7 @@ pub fn plot_spectogram(
 /// Plot scatterplot.
 pub fn scatterplot<S>(
     data: Vec<(f32, f32, S)>,
-    radius: u32,
+    radius: impl SizeDesc + Copy,
     file_out: &str,
     title: &str,
 ) -> anyhow::Result<()>
@@ -237,7 +237,7 @@ where
     info!("Min of plot is {min:?}");
 
     // Setup graph.
-    let root = BitMapBackend::new(&file_out, (1280, 720)).into_drawing_area();
+    let root = SVGBackend::new(&file_out, (1280, 720)).into_drawing_area();
     root.fill(&WHITE)?;
     let mut chart = ChartBuilder::on(&root)
         .caption(title, ("sans-serif", 50).into_font())

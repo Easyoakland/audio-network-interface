@@ -26,6 +26,10 @@ required-features = ["plot"]
 name = "comparison"
 
 [[bin]]
+name = "analyze_wav"
+required-features = ["plot"]
+
+[[bin]]
 name = "transceiver_cli"
 
 [[bin]]

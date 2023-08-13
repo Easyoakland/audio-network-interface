@@ -56,13 +56,9 @@ fn ofdm_multiframe_benchmark(c: &mut Criterion) {
     ));
     subcarriers[1] = SubcarrierEncoder::T1(bpsk_encode);
     let ofdm_spec = OfdmSpec {
-        seed: Default::default(),
-        short_training_repetitions: 10,
         time_symbol_len: 48,
         cyclic_prefix_len: 10,
-        cross_correlation_threshold: 0.12,
-        data_symbols: 32,
-        first_bin: 20,
+        ..Default::default()
     };
     let mut ofdm =
         OfdmFramesEncoder::new([false, true].into_iter().cycle(), subcarriers, ofdm_spec).flatten();

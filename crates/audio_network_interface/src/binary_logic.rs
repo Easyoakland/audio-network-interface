@@ -1,13 +1,14 @@
 use crate::{
     args::{ReceiveOpt, TransceiverOpt, TransmissionCli, TransmitOpt},
     constants::SKIPPED_STARTUP_SAMPLES,
-    file_io, transmit,
+    file_io::{self, write_wav},
+    transmit,
 };
 use anyhow::Context;
 use log::info;
 #[cfg(target_arch = "wasm32")]
 use log::{Level, LevelFilter};
-use std::io;
+use std::{convert::Infallible, io};
 
 pub async fn run(opt: TransmissionCli) -> anyhow::Result<()> {
     // Init logging.
@@ -38,15 +39,34 @@ pub async fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
         .context("Reading bytes from file.")?
         .into_iter();
 
-    transmit::encode_transmission(
-        opt.fec_spec,
-        opt.transmission_spec,
-        bytes,
-        transmit::play_stream,
-    )
-    .await
-    .context("error building stream")?
-    .map_err(Into::into)
+    match opt.out_file {
+        // Write to specified output if output was specified.
+        Some(out_file) => {
+            transmit::encode_transmission(opt.fec_spec, opt.transmission_spec, bytes, |signal| {
+                Ok::<_, Infallible>(async {
+                    write_wav(
+                        &out_file,
+                        std::iter::repeat(0.)
+                            .take(SKIPPED_STARTUP_SAMPLES) // simulate behavior of microphone startup
+                            .chain(signal),
+                    )
+                })
+            })
+            .await
+            .expect("Building stream is infallible")
+            .map_err(Into::into)
+        }
+        // If no output specified output to audio output device.
+        None => transmit::encode_transmission(
+            opt.fec_spec,
+            opt.transmission_spec,
+            bytes,
+            transmit::play_stream,
+        )
+        .await
+        .context("Error building stream")?
+        .map_err(Into::into),
+    }
 }
 
 /// Receive from file main logic.

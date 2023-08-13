@@ -1,8 +1,7 @@
 use crate::{
     args::FecSpec,
     constants::{
-        REED_SOL_MAX_SHARDS, SENSITIVITY, SHARD_BITS_LEN, SHARD_BYTES_LEN, SIMULTANEOUS_BYTES,
-        TIME_SAMPLES_PER_SYMBOL,
+        REED_SOL_MAX_SHARDS, SENSITIVITY, SHARD_BITS_LEN, SHARD_BYTES_LEN, TIME_SAMPLES_PER_SYMBOL,
     },
     transmit,
 };
@@ -39,7 +38,7 @@ use std::{
     marker::{Send, Sync},
     sync::{
         mpsc::{self, Receiver, RecvError, Sender, TryRecvError},
-        OnceLock,
+        Once,
     },
     task::{Poll, Waker},
     time::Duration,
@@ -81,7 +80,7 @@ where
     let channels = config.channels as usize;
     let is_done = mpsc::channel();
     let waker = mpsc::channel::<Waker>();
-    let once = OnceLock::new();
+    let once = Once::new();
 
     let mut next_value = move || match signal.next() {
         Some(x) => x,
@@ -89,7 +88,7 @@ where
             // Indicate end of signal.
             match is_done.0.send(()) {
                 Ok(()) => {
-                    once.get_or_init(|| trace!("Finished playing stream."));
+                    once.call_once(|| trace!("Finished playing stream."));
                     if let Ok(waker) = waker.1.try_recv() {
                         waker.wake()
                     };
@@ -283,9 +282,7 @@ where
                     [SubcarrierEncoder::T0(null_encode);
                         time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
                 ));
-                let active_bins =
-                    ofdm_spec.first_bin..(ofdm_spec.first_bin + 8 * SIMULTANEOUS_BYTES);
-                for i in active_bins {
+                for i in ofdm_spec.active_bins() {
                     subcarriers_encoders[i] = SubcarrierEncoder::T1(bpsk_encode);
                 }
                 // Use the encoding layout to actually create the frames with samples.
@@ -364,8 +361,7 @@ pub fn decode_transmission(
                 [SubcarrierDecoder::Data(null_decode);
                     time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
             ));
-            let active_bins = ofdm_spec.first_bin..(ofdm_spec.first_bin + 8 * SIMULTANEOUS_BYTES);
-            for i in active_bins {
+            for i in ofdm_spec.active_bins() {
                 subcarriers_decoders[i] = SubcarrierDecoder::Data(bpsk_decode);
             }
             // Generate transmitted preamble for comparison.

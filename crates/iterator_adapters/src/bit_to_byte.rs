@@ -6,14 +6,14 @@ use std::{
 
 pub struct BitToByte<I, T> {
     iter: I,
-    int_type: PhantomData<T>,
+    byte_type: PhantomData<T>,
 }
 
 impl<I, T> BitToByte<I, T> {
     pub fn new(iter: I) -> Self {
         Self {
             iter,
-            int_type: PhantomData,
+            byte_type: PhantomData,
         }
     }
 }

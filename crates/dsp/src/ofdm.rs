@@ -779,6 +779,61 @@ where
             ofdm_spec,
         }
     }
+
+    /// Next frame symbol of complex values after applying gain factors along with gain factors. Inner vec is per frequency outer is per time.
+    pub fn next_frame_complex(
+        &mut self,
+    ) -> Option<([Complex<T>; CHANNELS_NUM], Vec<Vec<Complex<T>>>)>
+    where
+        I: Clone,
+    {
+        // Get the expected preamble based on the parameters.
+        let expected_preamble = ofdm_preamble_encode(&self.ofdm_spec).collect::<Vec<T>>();
+        // Get the gain factors from the nonzero pseudorandom noise in the preamble.
+        let gain_factors = gain_from_preamble(
+            &mut self.samples,
+            expected_preamble,
+            self.ofdm_spec.cyclic_prefix_len,
+        )?;
+
+        // Get the transmitted data length.
+        let _data_len: usize = OfdmDataDecoder::new(
+            self.samples.by_ref(),
+            self.subcarrier_decoders,
+            self.ofdm_spec.cyclic_prefix_len,
+            gain_factors,
+        )
+        .decode(usize::BITS.try_into().unwrap())
+        .bits_to_bytes()
+        .next()?; // Not enough samples for another data length field
+
+        let data_sample_len = (self.ofdm_spec.data_symbols)
+            * (self.ofdm_spec.time_symbol_len + self.ofdm_spec.cyclic_prefix_len);
+
+        // Get data samples in the frame.
+        // TODO vec allocation might be unnecessary. Currently used because `OfdmDataDecoder` requires a 'static iterator for samples.
+        let data_samples = self
+            .samples
+            .by_ref()
+            .take(data_sample_len)
+            .collect::<Vec<_>>();
+        if data_samples.is_empty() {
+            return None;
+        };
+
+        let mut decoder = OfdmDataDecoder::new(
+            data_samples.into_iter(),
+            self.subcarrier_decoders,
+            self.ofdm_spec.cyclic_prefix_len,
+            gain_factors,
+        );
+        Some((
+            gain_factors,
+            iter::repeat_with(|| decoder.next_complex())
+                .map_while(|x| x)
+                .collect(),
+        ))
+    }
 }
 
 impl<'a, I, T, const CHANNELS_NUM: usize> Iterator for OfdmFramesDecoder<'a, I, T, CHANNELS_NUM>
@@ -808,8 +863,7 @@ where
         )
         .decode(usize::BITS.try_into().unwrap())
         .bits_to_bytes()
-        .next()
-        .expect("Insufficient samples to extract data length");
+        .next()?; // Not enough samples for another data length field
 
         let data_sample_len = (self.ofdm_spec.data_symbols)
             * (self.ofdm_spec.time_symbol_len + self.ofdm_spec.cyclic_prefix_len);

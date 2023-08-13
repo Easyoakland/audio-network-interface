@@ -1,4 +1,7 @@
+use crate::ofdm::ofdm_preamble_encode;
 use clap::{builder::RangedU64ValueParser, Args, Subcommand};
+use std::ops::Range;
+use stft::fft::FourierFloat;
 
 /// The spec for a transmission.
 // TODO Include things like realtime_vs_file
@@ -28,7 +31,7 @@ pub struct FdmSpec {
     pub parallel_channels: usize,
 }
 
-#[derive(Args, Clone, Debug, Default)]
+#[derive(Args, Clone, Debug)]
 /// Orthogonal frequency division multiplexing. Commonly used in digital communication such as in Wifi and 4G technology.
 pub struct OfdmSpec {
     /// Seed used for pseudorandom generation.
@@ -60,4 +63,56 @@ pub struct OfdmSpec {
     /// Can't be 0 because dc bin can't tranmit data.
     #[arg(short, long, default_value_t = 20, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
     pub first_bin: usize,
+
+    /// Number simultaneous bytes per symbol.
+    #[arg(short = 'b', long, default_value_t = 8, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
+    pub simultaneous_bytes: usize,
+}
+
+impl OfdmSpec {
+    /// Preamble of each frame.
+    pub fn preamble<T: FourierFloat>(&self) -> impl Iterator<Item = T> + Clone + core::fmt::Debug {
+        ofdm_preamble_encode(self)
+    }
+
+    /// Bins that transmit data.
+    // TODO take subcarrier type into consideration. This will allocate too many bins if using a multi-bit bin encoding ex qpsk.
+    pub fn active_bins(&self) -> Range<usize> {
+        self.first_bin..(self.first_bin + 8 * self.simultaneous_bytes)
+    }
+
+    /// The bits sent in a symbol
+    pub fn bits_per_symbol(&self) -> usize {
+        8 * self.simultaneous_bytes
+    }
+
+    /// Length of the length field.
+    pub fn len_field_len(&self) -> usize {
+        let length_field_bits: usize = usize::BITS.try_into().unwrap();
+        self.symbol_len()
+            * (length_field_bits / self.bits_per_symbol()
+                + usize::from(length_field_bits % self.bits_per_symbol() != 0))
+    }
+
+    /// Length of symbol + cyclic prefix.
+    pub fn symbol_len(&self) -> usize {
+        self.time_symbol_len + self.cyclic_prefix_len
+    }
+
+    /// Length of frame.
+    pub fn frame_len(&self) -> usize {
+        self.preamble::<f32>().count() // premable
+        + self.len_field_len() // length field
+        + self.data_symbols * self.symbol_len() // data symbols
+    }
+}
+
+impl Default for OfdmSpec {
+    fn default() -> Self {
+        use clap::{Command, FromArgMatches};
+        let c = Command::new("default");
+        let c = <Self as Args>::augment_args(c);
+        let m = c.get_matches_from([""].iter());
+        <OfdmSpec as FromArgMatches>::from_arg_matches(&m).expect("hardcoded values work")
+    }
 }
