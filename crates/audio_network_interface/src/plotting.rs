@@ -1,7 +1,7 @@
 use log::info;
 use num_traits::Zero;
 use plotters::{prelude::*, style::SizeDesc};
-use std::path::Path;
+use std::{cmp::PartialEq, path::Path};
 use stft::Stft;
 
 /// Plot a dtft analysis with proper scaling and labeling especially for the x axis frequency.
@@ -222,7 +222,7 @@ pub fn scatterplot<S>(
     title: &str,
 ) -> anyhow::Result<()>
 where
-    S: Into<ShapeStyle>,
+    S: Into<ShapeStyle> + Clone + PartialEq,
 {
     // Find extents of the data.
     let mut max = (f32::zero(), f32::zero());
@@ -258,13 +258,38 @@ where
 
     // Plot all points.
     /* let plotting_area = chart.plotting_area();
-    for point in data {
-        plotting_area.draw_pixel(point, color)?;
+    for (x, y, style) in data {
+        plotting_area.draw_pixel((x, y), &style)?;
     } */
+    let data = data.into_iter().collect::<Vec<_>>();
+    let styles = {
+        let mut out = data.clone();
+        out.dedup_by_key(|x| x.2.clone());
+        out.into_iter().map(|x| x.2)
+    };
     chart.draw_series(
         data.into_iter()
             .map(|(x, y, style)| Circle::new((x, y), radius, style)),
     )?;
+    // Add legend for each style
+    styles.enumerate().for_each(|(i, style)| {
+        chart
+            // Don't actually draw anything
+            .draw_series([Circle::new((0., 0.), 0, BLACK)])
+            // but add to legend
+            .expect("No fail on empty series")
+            // label
+            .label(i.to_string())
+            // and color
+            .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], style.clone()));
+    });
+
+    // Draw legend
+    chart
+        .configure_series_labels()
+        .position(SeriesLabelPosition::UpperRight)
+        .border_style(&BLACK)
+        .draw()?;
 
     root.present()?;
     info!("Successfully saved fft graph of to {file_out}");

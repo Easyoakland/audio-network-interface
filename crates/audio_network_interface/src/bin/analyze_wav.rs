@@ -103,14 +103,13 @@ fn iq_plane(
         subcarrier_decoders,
         ofdm_spec.clone(),
     );
-
+    let frames = decoder.clone().count();
     let mut points = Vec::new();
     for (idx, (_gain_factors, scaled_spectrum_per_time)) in
         iter::repeat_with(|| decoder.next_frame_complex())
             .map_while(|x| x)
             .enumerate()
     {
-        let symbol_num = scaled_spectrum_per_time.len();
         for scaled_spectrum in scaled_spectrum_per_time {
             points.push(
                 scaled_spectrum
@@ -121,7 +120,7 @@ fn iq_plane(
                         (
                             x.re as f32,
                             x.im as f32,
-                            HSLColor(idx as f64 / symbol_num as f64, 1.0, 0.5),
+                            HSLColor(idx as f64 / frames as f64, 1.0, 0.5),
                         )
                     })
                     .collect::<Vec<_>>(),
@@ -132,7 +131,7 @@ fn iq_plane(
         points.into_iter().flatten().collect(),
         1,
         "scatterplot.svg",
-        "IQ Plane colorized by time",
+        "IQ Plane colorized by frame ordered in time",
     )?;
 
     Ok(())
