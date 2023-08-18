@@ -42,7 +42,7 @@ fn cross_correlation_plot(ofdm_spec: &OfdmSpec, data: &[f64]) -> anyhow::Result<
                 .map(|(i, _)| {
                     if i < start {
                         0.0
-                    } else if (i - start) % ofdm_spec.symbol_len() == 0 {
+                    } else if (i - start) % ofdm_spec.symbol_samples_len() == 0 {
                         1.0
                     } else {
                         0.0

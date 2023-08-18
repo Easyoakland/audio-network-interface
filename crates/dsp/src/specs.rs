@@ -87,23 +87,28 @@ impl OfdmSpec {
     }
 
     /// Length of the length field.
-    pub fn len_field_len(&self) -> usize {
+    pub fn len_field_samples_len(&self) -> usize {
         let length_field_bits: usize = usize::BITS.try_into().unwrap();
-        self.symbol_len()
+        self.symbol_samples_len()
             * (length_field_bits / self.bits_per_symbol()
                 + usize::from(length_field_bits % self.bits_per_symbol() != 0))
     }
 
     /// Length of symbol + cyclic prefix.
-    pub fn symbol_len(&self) -> usize {
+    pub fn symbol_samples_len(&self) -> usize {
         self.time_symbol_len + self.cyclic_prefix_len
+    }
+
+    /// Length of samples transmitting data.
+    pub fn data_samples_len(&self) -> usize {
+        self.data_symbols * self.symbol_samples_len()
     }
 
     /// Length of frame.
     pub fn frame_len(&self) -> usize {
         self.preamble::<f32>().count() // premable
-        + self.len_field_len() // length field
-        + self.data_symbols * self.symbol_len() // data symbols
+        + self.len_field_samples_len() // length field
+        + self.data_samples_len() // data symbols
     }
 }
 

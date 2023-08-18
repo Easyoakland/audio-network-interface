@@ -10,8 +10,7 @@ use std::{
 
 // Trait acts as generic bounds alias.
 #[rustfmt::skip]
-pub trait FourierFloat: Copy + Float  + FromPrimitive + Signed + Sync + Send + Debug + 'static {}
-#[rustfmt::skip]
+pub trait FourierFloat: Copy + Float + FromPrimitive + Signed + Sync + Send + Debug + 'static {}
 impl<T: Copy + Float + FromPrimitive + Signed + Sync + Send + Debug + 'static> FourierFloat for T {}
 
 /// Take normalized fft and return complex values.
