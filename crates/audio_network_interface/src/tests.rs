@@ -36,7 +36,7 @@ fn simulated_transmit_receive(
     INIT_LOGGING.call_once(|| {
         simple_logger::init_with_env().unwrap();
     });
-    let mut channel = Vec::with_capacity(1);
+    let mut channel = None;
     let bytes = 0..=length;
     trace!("Transmitting bytes {bytes:?}");
 
@@ -46,7 +46,7 @@ fn simulated_transmit_receive(
         transmit_spec.clone(),
         bytes.clone(),
         |x| {
-            channel.push(x);
+            channel = Some(x);
             Ok::<_, Infallible>(core::future::ready(()))
         },
     ))
@@ -56,7 +56,7 @@ fn simulated_transmit_receive(
     let decoded = match decode_transmission(
         fec_spec,
         transmit_spec,
-        channel.remove(0).map(|x| {
+        channel.take().expect("Set by encode").map(|x| {
             x + noise_amplitude
                 * (NORMAL
                     .get_or_init(|| Normal::new(0.0, 1.0).unwrap())

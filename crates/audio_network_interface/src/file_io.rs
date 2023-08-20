@@ -88,7 +88,10 @@ pub async fn read_wav(file: &Path) -> anyhow::Result<(WavSpec, Vec<f64>)> {
 }
 
 /// Write data to wav file.
-pub fn write_wav(file: &Path, samples: impl Iterator<Item = f32>) -> anyhow::Result<()> {
+pub fn write_wav<S: hound::Sample>(
+    file: &Path,
+    samples: impl Iterator<Item = S>,
+) -> anyhow::Result<()> {
     let spec = WavSpec {
         channels: 1,
         sample_rate: 48000,
