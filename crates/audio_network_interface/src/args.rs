@@ -7,7 +7,7 @@ use log::Level;
 use std::path::PathBuf;
 
 /// Logging options.
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct LoggingOpt {
     /// The logging level to use.
     #[arg(
@@ -19,14 +19,14 @@ pub struct LoggingOpt {
     pub log_level: Level,
 }
 
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct FileInOpt {
     /// The input file.
     #[arg(value_hint = ValueHint::FilePath)]
     pub in_file: PathBuf,
 }
 
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct FileOutOpt {
     /// The output file.
     #[arg(value_hint = ValueHint::FilePath)]
@@ -34,7 +34,7 @@ pub struct FileOutOpt {
 }
 
 /// Data transmission over audio.
-#[derive(Parser, Clone)]
+#[derive(Parser, Clone, Debug)]
 #[command(version)]
 pub struct BaseCli {
     #[command(flatten)]
@@ -48,7 +48,7 @@ pub struct BaseCli {
 }
 
 /// Forward error correction.
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct FecSpec {
     /// The number of parity shards to use as duplicate information.
     #[arg(short, long, default_value_t = 5)]
@@ -56,7 +56,7 @@ pub struct FecSpec {
 }
 
 /// Encoding and transmitting a signal.
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct TransmitOpt {
     #[command(flatten)]
     pub in_file: FileInOpt,
@@ -74,7 +74,7 @@ pub struct TransmitOpt {
 }
 
 /// Receiving and decoding a signal.
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct ReceiveOpt {
     #[command(flatten)]
     pub in_file: FileInOpt,
@@ -90,13 +90,13 @@ pub struct ReceiveOpt {
 }
 
 /// Transmit or receive options.
-#[derive(Subcommand, Clone)]
+#[derive(Subcommand, Clone, Debug)]
 pub enum TransceiverOpt {
     Transmit(TransmitOpt),
     Receive(ReceiveOpt),
 }
 
-#[derive(Parser, Clone)]
+#[derive(Parser, Clone, Debug)]
 // default
 #[doc = concat!(
     include_str!("about.md"),
