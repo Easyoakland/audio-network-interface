@@ -6,31 +6,27 @@ use std::{iter, sync::Arc};
 /// Encodes data with reed solomon erasure encoding
 #[derive(Debug, Default, Clone)]
 pub struct ReedSolomonEncoder {
+    /// Size of blocks in bytes.
     pub block_size: usize,
+    /// Number of parity blocks.
     pub parity_blocks: usize,
 }
 
 /// Reuse the created [`ReedSolomon`] since creation is a high compute operation.
-/// Would clone, but clone is implemeneted in terms of [`ReedSolomon::new`] and therefore has the same high compute cost.
+/// Would clone directly, but clone is implemented in terms of [`ReedSolomon::new`] and therefore has the same high compute cost.
 #[cached::proc_macro::cached]
 fn cached_new_reed_sol(data_blocks: usize, parity_blocks: usize) -> Arc<ReedSolomon> {
     Arc::new(ReedSolomon::new(data_blocks, parity_blocks).unwrap())
 }
 
 impl ReedSolomonEncoder {
-    /// Encodes the data into shards and with the given number of parity blocks.
-    /// Returns the padding amount followed by padding followed by the encoding.
+    /// Encodes the data into shards with the given number of parity blocks.
     pub fn encode(&self, data: Vec<u8>) -> Result<Vec<Vec<u8>>, reed_solomon_erasure::Error> {
-        let padding;
-        // Count data_blocks.
-        let data_blocks = {
-            let mut out = 0;
-            // Add the qty of block sizes that fully fit the data +1 for the padded shard.
-            out += data.len() / self.block_size + 1;
-            // Add an extra block. Padding is amount of extra zeros after padding number.
-            padding = self.block_size - data.len() % self.block_size - 1;
-            out
-        };
+        // Count the qty of block sizes that fully fit the data +1 for the padded shard.
+        let data_blocks = data.len() / self.block_size + 1;
+        // Will add an extra shard/block of the form `[padding_zeros_qty, 0, 0, ...]`.
+        // `padding` is that first byte. It is the amount of extra zeros after itself.
+        let padding = self.block_size - data.len() % self.block_size - 1;
 
         // Define encoder.
         let r = cached_new_reed_sol(data_blocks, self.parity_blocks);
@@ -79,20 +75,12 @@ impl ReedSolomonDecoder {
         &self,
         mut data: Vec<Option<Vec<u8>>>,
     ) -> Result<Vec<u8>, reed_solomon_erasure::Error> {
-        const PADDED_DATA_SHARDS: usize = 1;
-        let non_paddded_data_shards = data
+        let data_shards = data
             .len()
-            .checked_sub(PADDED_DATA_SHARDS)
-            .ok_or(reed_solomon_erasure::Error::TooFewShards)?
             .checked_sub(self.parity_shards)
             .ok_or(reed_solomon_erasure::Error::TooFewShards)?;
 
-        // Reconstruct from encoding.
-
-        let r = cached_new_reed_sol(
-            non_paddded_data_shards + PADDED_DATA_SHARDS,
-            self.parity_shards,
-        );
+        let r = cached_new_reed_sol(data_shards, self.parity_shards);
 
         // If padding shard exists make sure it has a valid amount of padding.
         // Remove padding. Remember to skip the amount byte indicating the amount of padding in addition to the extra 0's.
@@ -114,7 +102,7 @@ impl ReedSolomonDecoder {
         let out = data
             .into_iter()
             .flatten()
-            .take(non_paddded_data_shards + PADDED_DATA_SHARDS)
+            .take(data_shards)
             .flatten()
             .collect::<Vec<_>>();
         let padding = out[0];
