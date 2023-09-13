@@ -65,7 +65,7 @@ fn main() -> anyhow::Result<()> {
     .bits_to_bytes()
     .collect::<Vec<_>>();
 
-    write_file_bytes(&opt.out_file, &consensus_file).context("Writing bytes")?;
+    block_on(write_file_bytes(&opt.out_file, &consensus_file)).context("Writing bytes")?;
 
     Ok(())
 }

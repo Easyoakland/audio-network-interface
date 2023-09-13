@@ -54,6 +54,7 @@ pub async fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
             })
             .await
             .expect("Building stream is infallible")
+            .await
             .map_err(Into::into)
         }
         // If no output specified output to audio output device.
@@ -76,7 +77,7 @@ pub async fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
         .await
         .with_context(|| {
             format!(
-                "Opening {} for reading wav contents",
+                "Opening \"{}\" for reading wav contents",
                 opt.in_file.in_file.display()
             )
         })?;
@@ -94,6 +95,7 @@ pub async fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
     // Write the decoded byte vector to a file.
     let out_path = &opt.out_file.out_file;
     file_io::write_file_bytes(out_path, &bytes)
+        .await
         .with_context(|| format!("Writing to file {}.", out_path.display()))?;
     info!(
         "Saved decoded file to '{}'",

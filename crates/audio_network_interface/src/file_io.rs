@@ -1,7 +1,5 @@
 use anyhow::Context;
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
-#[cfg(target_arch = "wasm32")]
-use log::info;
 #[cfg(not(target_arch = "wasm32"))]
 use std::{
     fs::File,
@@ -41,23 +39,26 @@ pub async fn read_file_bytes(
 }
 
 /// Write byte slice to specified file.
-pub fn write_file_bytes(file: &Path, data: &[u8]) -> anyhow::Result<()> {
+pub async fn write_file_bytes(file: &Path, data: &[u8]) -> std::io::Result<()> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let file_handle = File::create(file)?;
         let mut writer = BufWriter::new(file_handle);
-        writer.write_all(data)?;
+        writer.write_all(data)
     }
-    // TODO write to file instead of logging
     #[cfg(target_arch = "wasm32")]
     {
-        info!(
-            "Writing to '{}': {:?}",
-            file.display(),
-            data.iter().map(|&x| x as char).collect::<String>()
-        )
+        rfd::AsyncFileDialog::new()
+            .set_title(&file.display().to_string())
+            .save_file()
+            .await
+            .ok_or(io::Error::new(
+                io::ErrorKind::Interrupted,
+                format!("File dialogue closed while picking \"{}\"", file.display()),
+            ))?
+            .write(data)
+            .await
     }
-    Ok(())
 }
 
 /// Read data from a wav file.
@@ -67,8 +68,8 @@ pub async fn read_wav(file: &Path) -> anyhow::Result<(WavSpec, Vec<f64>)> {
         .with_context(|| format!("reading file {}", file.display()))?
         .collect::<Result<Vec<_>, io::Error>>()?;
     // The WAV file to decode.
-    let mut reader =
-        WavReader::new(&*bytes).with_context(|| format!("Invalid wav file {}", file.display()))?;
+    let mut reader = WavReader::new(&*bytes)
+        .with_context(|| format!("Invalid wav file \"{}\"", file.display()))?;
     let spec = reader.spec();
     log::trace!("Spec: {:?}", reader.spec());
     // Select correct format representation.
@@ -88,7 +89,7 @@ pub async fn read_wav(file: &Path) -> anyhow::Result<(WavSpec, Vec<f64>)> {
 }
 
 /// Write data to wav file.
-pub fn write_wav<S: hound::Sample>(
+pub async fn write_wav<S: hound::Sample>(
     file: &Path,
     samples: impl Iterator<Item = S>,
 ) -> anyhow::Result<()> {
@@ -104,6 +105,6 @@ pub fn write_wav<S: hound::Sample>(
         writer.write_sample(sample)?;
     }
     writer.finalize()?;
-    write_file_bytes(file, &memory_writer.into_inner())?;
+    write_file_bytes(file, &memory_writer.into_inner()).await?;
     Ok(())
 }
