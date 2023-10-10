@@ -167,7 +167,7 @@ where
             // Return the number of bits that were actually taken.
             i
         }
-        // Pull next values into scratch. If it the first subcarrier and no new bits were taken then the data has been exhausted.
+        // Pull next values into scratch. If the first subcarrier and no new bits were taken then the data has been exhausted.
         let mut first_subcarrier = true;
         for (f, scratch) in self
             .subcarrier_functions
@@ -190,14 +190,17 @@ where
         let raw_time_symbol = scaled_real_ifft(&mut self.scratch_space);
 
         // Prefix cyclic prefix.
-        let cyclic_prefix = &raw_time_symbol[raw_time_symbol.len() - self.cyclic_prefix_length..];
-        let symbol_with_cyclic_prefix = {
-            let mut out = Vec::with_capacity(raw_time_symbol.len() + cyclic_prefix.len());
-            out.extend_from_slice(cyclic_prefix);
-            out.extend_from_slice(&raw_time_symbol);
-            out
-        };
-        Some(symbol_with_cyclic_prefix)
+        Some(if self.cyclic_prefix_length > 0 {
+            let cyclic_prefix =
+                &raw_time_symbol[raw_time_symbol.len() - self.cyclic_prefix_length..];
+            cyclic_prefix
+                .into_iter()
+                .chain(&raw_time_symbol)
+                .copied()
+                .collect()
+        } else {
+            raw_time_symbol
+        })
     }
 }
 
@@ -390,12 +393,16 @@ fn ofdm_long_training_symbol<T: FourierFloat>(
     );
 
     // Prepend cyclic prefix.
-    let cyclic_prefix = &raw_time_symbol[raw_time_symbol.len() - cyclic_prefix_len..];
-    let mut symbol_with_cyclic_prefix =
-        Vec::with_capacity(raw_time_symbol.len() + cyclic_prefix_len);
-    symbol_with_cyclic_prefix.extend_from_slice(cyclic_prefix);
-    symbol_with_cyclic_prefix.extend_from_slice(&raw_time_symbol);
-    symbol_with_cyclic_prefix
+    if cyclic_prefix_len > 0 {
+        let cyclic_prefix = &raw_time_symbol[raw_time_symbol.len() - cyclic_prefix_len..];
+        cyclic_prefix
+            .into_iter()
+            .chain(&raw_time_symbol)
+            .copied()
+            .collect()
+    } else {
+        raw_time_symbol
+    }
 }
 
 /// Generates an ofdm training preamble.
