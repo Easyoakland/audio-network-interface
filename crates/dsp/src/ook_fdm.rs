@@ -191,17 +191,17 @@ impl OokFdmDecoder {
             }
         }
 
-        // When window first full of active bits the packet is started the bit after that window.
+        // When window first full of active bits the frame is started the bit after that window.
         let start_idx = decoded
             .windows(frequency_channel_cnt)
             .position(|x| x.iter().filter(|x| **x).count() == frequency_channel_cnt)
             .expect("Can't find start.")
             + frequency_channel_cnt;
-        // When window is first full of active bits in reverse the packet ends at the end of that window.
+        // When window is first full of active bits in reverse the frame ends at the end of that window.
         let end_idx = decoded
             .windows(frequency_channel_cnt)
             .rev()
-            // When window is full of active bits the packet is started.
+            // When window is full of active bits the frame is started.
             .position(|x| x.iter().filter(|x| **x).count() == frequency_channel_cnt)
             .expect("Can't find end.")
             + frequency_channel_cnt;

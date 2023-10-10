@@ -308,8 +308,8 @@ where
 
 #[derive(Error, Debug)]
 pub enum DecodingError {
-    #[error("No packet found: {0}")]
-    NoPacket(String),
+    #[error("No frame found: {0}")]
+    NoFrame(String),
     #[error("Io Error: {0}")]
     Io(#[from] io::Error),
     #[error("Forward error correction failed to decode: {0}")]
@@ -367,18 +367,19 @@ pub fn decode_transmission(
             // Generate transmitted preamble for comparison.
             let tx_preamble = ofdm_preamble_encode(&ofdm_spec).collect::<Vec<_>>();
             // Detect start of frame by comparing to reference preamble.
-            let Some(packet_start) = ofdm_premable_cross_correlation_detector(
+            let Some(frame_start) = ofdm_premable_cross_correlation_detector(
                 &source.clone().collect::<Vec<_>>(),
-                &tx_preamble
-                    [..ofdm_spec.time_symbol_len / ofdm_spec.short_training_repetitions],
+                &tx_preamble[..ofdm_spec.time_symbol_len / ofdm_spec.short_training_repetitions],
                 ofdm_spec.cross_correlation_threshold,
             ) else {
-                return Err(DecodingError::NoPacket("Can't find start of packet.".to_owned()));
+                return Err(DecodingError::NoFrame(
+                    "Can't find start of frame.".to_owned(),
+                ));
             };
-            trace!("Packet Start: {:?}", packet_start);
+            trace!("Frame Start: {:?}", frame_start);
             // Setup decoder.
             let frames_decoder = OfdmFramesDecoder::new(
-                source.into_iter().skip(packet_start.0),
+                source.into_iter().skip(frame_start.0),
                 *subcarriers_decoders,
                 ofdm_spec,
             );

@@ -133,7 +133,7 @@ fn simulated_fail_to_find_decode_ofdm() {
         0,
         48000.0,
     ) {
-        Err(DecodingError::NoPacket(_)) => (),
+        Err(DecodingError::NoFrame(_)) => (),
         Ok(x) => panic!("Shouldn't be able to decode to: {x:?}"),
         Err(e) => panic!("{e}"),
     }

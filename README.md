@@ -36,8 +36,9 @@ The gui has help information on hover.
         - [ ] Cyclic redundancy check [CRC-32](https://en.wikipedia.org/wiki/Cyclic_redundancy_check)
     - [ ] Orthogonal FDM ([OFDM](https://en.wikipedia.org/wiki/Orthogonal_frequency-division_multiplexing))
         - [x] Cyclic prefix
-        - [ ] Multiple packets
-            - [x] Multiple frames
+        - [ ] Multiple frames
+            - [x] Multiple contiguous frames
+            - [ ] Multiple non-contiguous frames
             - [x] Coarse timing estimation
                 - [x] Autocorrelation
                 - [x] Cross-correlation

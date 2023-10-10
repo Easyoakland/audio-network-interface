@@ -106,7 +106,7 @@ where
     cross_correlation_before_sum(f, g, n, N).sum()
 }
 
-/// Correlation scaled for packet onset detection.
+/// Correlation scaled for frame onset detection.
 /// The pairs of products is divided by the energy as in <https://ieeexplore.ieee.org/document/650240>.
 ///
 /// Example use case is when `g` is a timeshifted version of `f`.
@@ -135,7 +135,7 @@ where
             .powi(2)
 }
 
-/// Correlation scaled for packet onset detection.
+/// Correlation scaled for frame onset detection.
 /// The pairs of products is divided by the energy as in <https://ieeexplore.ieee.org/document/650240>.
 ///
 /// Example use case is when `g` is a timeshifted version of `f`.
