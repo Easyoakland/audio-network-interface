@@ -62,7 +62,6 @@ fn simulated_transmit_receive(
                     .get_or_init(|| Normal::new(0.0, 1.0).unwrap())
                     .sample(&mut rand::thread_rng()))
         }),
-        0,
         48000.0,
     ) {
         Ok(x) => x,
@@ -130,7 +129,6 @@ fn simulated_fail_to_find_decode_ofdm() {
         FEC_DEFAULT_SPEC,
         OFDM_DEFAULT_TRANSMISSION_SPEC,
         (0..=255i16).map(f32::from).cycle().take(4800),
-        0,
         48000.0,
     ) {
         Err(DecodingError::NoFrame(_)) => (),
@@ -138,3 +136,6 @@ fn simulated_fail_to_find_decode_ofdm() {
         Err(e) => panic!("{e}"),
     }
 }
+
+// TODO non-multiple of 8 bits test
+// TODO no parity shards and no parity check fails test

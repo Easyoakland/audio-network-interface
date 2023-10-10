@@ -1,6 +1,5 @@
 use crate::{
     args::{ReceiveOpt, TransceiverOpt, TransmissionCli, TransmitOpt},
-    constants::SKIPPED_STARTUP_SAMPLES,
     file_io::{self, write_wav},
     transmit,
 };
@@ -34,7 +33,12 @@ pub async fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
     // Read file bytes.
     let bytes = file_io::read_file_bytes(&opt.in_file.in_file)
         .await
-        .with_context(|| format!("Opening file {}", opt.in_file.in_file.display()))?
+        .with_context(|| {
+            format!(
+                "Opening file handle for \"{}\"",
+                opt.in_file.in_file.display()
+            )
+        })?
         .collect::<Result<Vec<u8>, io::Error>>()
         .context("Reading bytes from file.")?
         .into_iter();
@@ -43,19 +47,11 @@ pub async fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
         // Write to specified output if output was specified.
         Some(out_file) => {
             transmit::encode_transmission(opt.fec_spec, opt.transmission_spec, bytes, |signal| {
-                Ok::<_, Infallible>(async {
-                    write_wav(
-                        &out_file,
-                        std::iter::repeat(0.)
-                            .take(SKIPPED_STARTUP_SAMPLES) // simulate behavior of microphone startup
-                            .chain(signal),
-                    )
-                })
+                Ok::<_, Infallible>(write_wav(&out_file, signal))
             })
             .await
-            .expect("Building stream is infallible")
-            .await
-            .map_err(Into::into)
+            .expect("Building write_wav sink is infallible")
+            .context("Writing signal to wav file with write_wav sink")
         }
         // If no output specified output to audio output device.
         None => transmit::encode_transmission(
@@ -65,8 +61,8 @@ pub async fn transmit_from_file(opt: TransmitOpt) -> anyhow::Result<()> {
             transmit::play_stream,
         )
         .await
-        .context("Error building stream")?
-        .map_err(Into::into),
+        .context("Building audio device sink to play stream")?
+        .context("Playing stream with audio device sink"),
     }
 }
 
@@ -88,7 +84,6 @@ pub async fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
         opt.fec_spec,
         opt.transmission_spec,
         data.into_iter().map(|x| x as f32),
-        SKIPPED_STARTUP_SAMPLES,
         spec.sample_rate as f32,
     )?;
 

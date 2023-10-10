@@ -148,11 +148,14 @@ fn main() -> anyhow::Result<()> {
             .skip_while(|x| x != &"-p" && x != &"--path")
             .skip(1)
             .next()
-            .map(|x| dbg!(x))
-            .expect("path"),
+            .expect("missing path arg: -p <PATH> or --path <PATH>"),
     );
     let (_spec, data) = block_on(read_wav(path))?;
-    let data = &data[0..];
+    let data_start = data
+        .iter()
+        .position(|&x| x != 0.)
+        .expect("nonzero starting position"); // skip absolute silence
+    let data = &data[data_start..];
     let tx_preamble = ofdm_preamble_encode(&ofdm_spec).collect::<Vec<_>>();
     let cross_preamble_detect = ofdm_premable_cross_correlation_detector(
         &data,
@@ -164,8 +167,24 @@ fn main() -> anyhow::Result<()> {
         .map(|start| &data[start..])
         .unwrap_or(data);
 
-    cross_correlation_plot(&ofdm_spec, data)?;
-    dbg!(cross_preamble_detect);
+    let max = data
+        .iter()
+        .map(|x| x.abs())
+        .max_by(|x, y| {
+            if !x.is_finite() {
+                std::cmp::Ordering::Less
+            } else if !y.is_finite() {
+                std::cmp::Ordering::Greater
+            } else {
+                x.total_cmp(y)
+            }
+        })
+        .expect("nonempty");
+    cross_correlation_plot(
+        &ofdm_spec,
+        &data.iter().map(|x| x / max).collect::<Vec<_>>(),
+    )?;
+    println!("Start of frame detection result: {cross_preamble_detect:?}");
     let subcarrier_decoders = {
         let mut out = Box::new(
             [SubcarrierDecoder::Data(null_decode::<f64>); time_samples_to_frequency(4800)],

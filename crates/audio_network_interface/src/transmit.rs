@@ -158,10 +158,19 @@ pub fn play_stream(
     let host = cpal::default_host();
     let device = host
         .default_output_device()
-        .expect("no output device available");
-    let config = device
-        .default_output_config()
-        .expect("no default config for device");
+        .ok_or(BuildStreamError::DeviceNotAvailable)?;
+    let config = match device.default_output_config() {
+        Ok(x) => Ok(x),
+        Err(cpal::DefaultStreamConfigError::DeviceNotAvailable) => {
+            Err(BuildStreamError::DeviceNotAvailable)
+        }
+        Err(cpal::DefaultStreamConfigError::StreamTypeNotSupported) => {
+            Err(BuildStreamError::StreamConfigNotSupported)
+        }
+        Err(cpal::DefaultStreamConfigError::BackendSpecific { err }) => {
+            Err(BuildStreamError::BackendSpecific { err })
+        }
+    }?;
 
     trace!(
         "Output device: {}",
@@ -321,11 +330,10 @@ pub fn decode_transmission(
     fec_spec: FecSpec,
     transmission_spec: TransmissionSpec,
     source: impl DynCloneIterator<f32> + Clone,
-    skipped_startup_samples: usize,
     sample_rate: f32,
 ) -> Result<Vec<u8>, DecodingError> {
     // Skip startup samples
-    let source = source.skip(skipped_startup_samples);
+    let source = source.skip_while(|&x| x == 0.);
 
     // Get data using correct method.
     let bits: BitVec<u8, Lsb0> = match transmission_spec {
@@ -367,6 +375,7 @@ pub fn decode_transmission(
             // Generate transmitted preamble for comparison.
             let tx_preamble = ofdm_preamble_encode(&ofdm_spec).collect::<Vec<_>>();
             // Detect start of frame by comparing to reference preamble.
+            // TODO don't collect all source into a vec. Either reimplement detector or use a lazy collection.
             let Some(frame_start) = ofdm_premable_cross_correlation_detector(
                 &source.clone().collect::<Vec<_>>(),
                 &tx_preamble[..ofdm_spec.time_symbol_len / ofdm_spec.short_training_repetitions],
