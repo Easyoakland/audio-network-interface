@@ -392,9 +392,17 @@ pub fn decode_transmission(
                 *subcarriers_decoders,
                 ofdm_spec,
             );
-            frames_decoder
-                .flat_map(|x| x.bits_to_bytes::<u8>())
-                .collect()
+            // Flatten all frames of bits into a really long bitvector
+            // TODO this collects the entire transmission into memory
+            // TODO this needs to allocate a box to not overflow stack on DEBUG
+            #[cfg(debug_assertions)]
+            {
+                Box::new(frames_decoder.flatten()).collect::<BitVec<u8, Lsb0>>()
+            }
+            #[cfg(not(debug_assertions))]
+            {
+                frames_decoder.flatten().collect::<BitVec<u8, Lsb0>>()
+            }
         }
     };
 

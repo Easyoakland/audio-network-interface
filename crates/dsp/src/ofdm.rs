@@ -812,7 +812,9 @@ where
         )
         .decode(usize::BITS.try_into().unwrap())
         .bits_to_bytes()
-        .next()?; // Not enough samples for another data length field
+        // Not enough samples for another data length field
+        .next()?
+        .ok()?;
 
         // Get data samples in the frame.
         // TODO vec allocation might be unnecessary. Currently used because `OfdmDataDecoder` requires a 'static iterator for samples.
@@ -859,7 +861,7 @@ where
         )?;
 
         // Get the transmitted data length.
-        let data_len = OfdmDataDecoder::new(
+        let data_len: usize = OfdmDataDecoder::new(
             self.samples.by_ref(),
             self.subcarrier_decoders,
             self.ofdm_spec.cyclic_prefix_len,
@@ -867,7 +869,9 @@ where
         )
         .decode(usize::BITS.try_into().unwrap())
         .bits_to_bytes()
-        .next()?; // Not enough samples for another data length field
+        // Not enough samples for another data length field
+        .next()?
+        .ok()?;
 
         let data_sample_len = (self.ofdm_spec.data_symbols)
             * (self.ofdm_spec.time_symbol_len + self.ofdm_spec.cyclic_prefix_len);

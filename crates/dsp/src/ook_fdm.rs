@@ -225,6 +225,6 @@ impl OokFdmDecoder {
             .rev();
 
         // Convert bit vector to byte vector.
-        decoded.bits_to_bytes().collect()
+        decoded.bits_to_bytes().map_while(Result::ok).collect()
     }
 }

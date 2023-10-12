@@ -134,7 +134,10 @@ pub trait IteratorAdapter: Iterator {
         Chunks::new(self, chunk_size)
     }
 
-    /// Converts iterator of bool into iterator of byte sized type. Extra remainder bits will be ignored.
+    /// Converts iterator of bool in BigEndian (LSB first) order into iterator of byte sized type.
+    ///
+    /// If there is an insufficient number of bits for a full next element returns an [`Err`]
+    /// with a partially filled byte type and the number of bits set. The unset bits are the default's bits
     fn bits_to_bytes<T>(self) -> BitToByte<Self, T>
     where
         Self: Sized + Iterator<Item = bool>,

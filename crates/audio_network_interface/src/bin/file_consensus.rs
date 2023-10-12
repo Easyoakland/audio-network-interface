@@ -63,6 +63,10 @@ fn main() -> anyhow::Result<()> {
             .expect("NonEmpty")
     })
     .bits_to_bytes()
+    .map(|x| match x {
+        Ok(byte) => byte,
+        Err((_actual_bits, partial_byte)) => partial_byte,
+    })
     .collect::<Vec<_>>();
 
     block_on(write_file_bytes(&opt.out_file, &consensus_file)).context("Writing bytes")?;
