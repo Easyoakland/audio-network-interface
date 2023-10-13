@@ -53,7 +53,7 @@ fn simulated_transmit_receive(
     .unwrap();
 
     // Decode from sink.
-    let decoded = match decode_transmission(
+    let decoded = decode_transmission(
         fec_spec,
         transmit_spec,
         channel.take().expect("Set by encode").map(|x| {
@@ -63,10 +63,8 @@ fn simulated_transmit_receive(
                     .sample(&mut rand::thread_rng()))
         }),
         48000.0,
-    ) {
-        Ok(x) => x,
-        Err(e) => panic!("{e}"),
-    };
+    )
+    .unwrap();
 
     assert_eq!(decoded, bytes.collect::<Vec<_>>());
 }

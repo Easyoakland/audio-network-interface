@@ -299,19 +299,19 @@ impl<'a, I: Iterator<Item = T>, T: FourierFloat, const CHANNELS_NUM: usize> Iter
         let spectrum = self.next_complex()?;
 
         // Decode complex values to corresponding bit values.
-        // Adjust by gain factor and apply channel's decoding function.
-        let mut out = Vec::new();
-        spectrum
-            .into_iter()
-            .enumerate()
-            .map(|(i, x)| x * self.gain_factors[i])
-            .zip(self.subcarrier_decoders)
-            .for_each(|(sample, subcarrier_decoder)| match subcarrier_decoder {
-                SubcarrierDecoder::Data(f) => out.extend_from_slice(&f(sample)),
-                SubcarrierDecoder::Pilot(_) => todo!("Pilot decoding"),
-            });
-
-        Some(out)
+        Some(
+            spectrum
+                .into_iter()
+                .enumerate()
+                // Adjust by gain factor and apply channel's decoding function.
+                .map(|(i, x)| x * self.gain_factors[i])
+                .zip(&self.subcarrier_decoders)
+                .flat_map(|(sample, subcarrier_decoder)| match subcarrier_decoder {
+                    SubcarrierDecoder::Data(f) => f(sample),
+                    SubcarrierDecoder::Pilot(_) => todo!("Pilot decoding"),
+                })
+                .collect(),
+        )
     }
 }
 
@@ -873,15 +873,12 @@ where
         .next()?
         .ok()?;
 
-        let data_sample_len = (self.ofdm_spec.data_symbols)
-            * (self.ofdm_spec.time_symbol_len + self.ofdm_spec.cyclic_prefix_len);
-
         // Get data samples in the frame.
         // TODO vec allocation might be unnecessary. Currently used because `OfdmDataDecoder` requires a 'static iterator for samples.
         let data_samples = self
             .samples
             .by_ref()
-            .take(data_sample_len)
+            .take(self.ofdm_spec.data_samples_len())
             .collect::<Vec<_>>();
         if data_samples.is_empty() {
             return None;

@@ -106,7 +106,7 @@ fn iq_plane(
     let frames = decoder.clone().count();
     let mut points = Vec::new();
     for (idx, (_gain_factors, scaled_spectrum_per_time)) in
-        iter::repeat_with(|| decoder.next_frame_complex())
+        iter::repeat_with(|| decoder.next_frame_complex()) // TODO doesn't work with multiple-frames with preambles
             .map_while(|x| x)
             .enumerate()
     {
