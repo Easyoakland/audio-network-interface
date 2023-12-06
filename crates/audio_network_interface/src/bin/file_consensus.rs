@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
             .iter()
             .enumerate()
             .max_by_key(|(_i, &x)| x)
-            .map(|x| match x.0 {
+            .map(|(i, _x)| match i {
                 0 => Some(false),
                 1 => Some(true),
                 2 => None,

@@ -43,7 +43,7 @@ The gui has help information on hover.
                 - [x] Autocorrelation
                 - [x] Cross-correlation
         - [ ] Precise timing estimation
-            - [ ] Pilot Symbol
+            - [x] Pilot Symbol
             - [ ] Pilot Channel
     - [ ] Quadrature Phase Shift Keying ([QPSK](https://en.wikipedia.org/wiki/Phase-shift_keying#Quadrature_phase-shift_keying_(QPSK)))
         - [x] bpsk (2 point)
@@ -55,7 +55,7 @@ The gui has help information on hover.
         - [ ] n point
     - [ ] Different sampling frequency of transmitter vs receiver
     - [ ] Realtime
-        - Faster than realtime (~6-15x) but don't yet have option to decode direct from microphone.
+        - Faster than realtime but don't yet have option to decode direct from microphone.
     - [x] From file
 - [ ] Interface
     - [x] Command line interface (cli)

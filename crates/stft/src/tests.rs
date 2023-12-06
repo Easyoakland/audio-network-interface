@@ -1,5 +1,5 @@
 use crate::{bin_width_from_time, fft::window_fn, SpecCompute, WindowLength};
-use proptest::{prelude::ProptestConfig, proptest};
+use proptest::{prelude::ProptestConfig, prop_assume, proptest};
 
 fn test_signal(mut signal_frequency: f32, sample_rate: f32) {
     // Signal frequency must be less than Nyquist frequency
@@ -83,66 +83,6 @@ fn test_min_signal() {
     test_signal(1.0, 1.0);
 }
 
-fn test_signal_for_panics(signal_frequency: f32, sample_rate: f32) {
-    // Reassign invalid input.
-    // Must have positive frequency.
-    let mut signal_frequency = signal_frequency.abs();
-    // Must have positive sample rate.
-    let mut sample_rate = sample_rate.abs();
-    // Must have nonzero sample rate.
-    if sample_rate <= f32::EPSILON {
-        sample_rate = 1.0
-    }
-    // If signal frequency is 0 the signal will not be detected because time data will be [0.0,0.0,...]
-    if signal_frequency <= f32::EPSILON {
-        signal_frequency = 1.0
-    }
-    // Signal frequency must be less than Nyquist frequency
-    while signal_frequency > sample_rate / 2.0 {
-        signal_frequency /= 2.0
-    }
-
-    let signal_frequency = signal_frequency;
-
-    // Generate example signal window parameters.
-    let window_len = WindowLength::from_samples(2usize.pow(3));
-    let window_step = window_len / 4;
-    let window_fn = window_fn::rectangular;
-    // Generate samples.
-    let mut data = Vec::new();
-    for sample_num in 0..20000 {
-        let t = sample_num as f32 / sample_rate;
-        data.push(f64::from(
-            (2.0 * std::f32::consts::PI * signal_frequency * t).sin(),
-        ));
-    }
-    let bin_width = bin_width_from_time(sample_rate, window_len.samples());
-
-    // Compute the stft.
-    let spec_compute = SpecCompute::new(data, window_len, window_step, window_fn);
-    let frequency_analysis = spec_compute.stft();
-
-    // Check for zero lengths.
-    assert!(
-        !frequency_analysis.data.is_empty(),
-        "No frequencies in frequency analysis."
-    );
-    for transient in &frequency_analysis.data {
-        assert!(!transient.is_empty(), "Transient length is 0.");
-    }
-
-    let power_transient = frequency_analysis.power();
-    let total_energy: f64 = power_transient.into_iter().sum();
-
-    // Make sure no frequency has more energy than all frequencies combined.
-    for (bin_idx, transient) in frequency_analysis.data.iter().enumerate() {
-        let freq_lower = bin_width * bin_idx as f32;
-        let freq_higher = freq_lower + bin_width;
-        let total_energy_of_freq = transient.iter().map(|x| x.powi(2)).sum::<f64>();
-        assert!(total_energy_of_freq <= total_energy, "Bin index: {bin_idx}; Frequency: {freq_lower}-{freq_higher} has energy {total_energy_of_freq} which is more than total signal's {total_energy}.");
-    }
-}
-
 fn float_eq(a: f64, b: f64, epsilon: f64) -> bool {
     let abs_a = a.abs();
     let abs_b = b.abs();
@@ -193,8 +133,49 @@ fn power_freq_eq_time(mut signal_frequency: f32, sample_rate: f32) {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10))] // Decrease case default from 256 to 10 because these test are slow.
     #[test]
-    fn proptest_single_frequency(signal_frequency: f32, sample_rate: f32) {
-        test_signal_for_panics(signal_frequency, sample_rate);
+    fn proptest_stft_basic(signal_frequency: f32, sample_rate: f32) {
+        prop_assume!(signal_frequency > f32::EPSILON);
+        prop_assume!(sample_rate > f32::EPSILON);
+        prop_assume!(signal_frequency < sample_rate / 2.0);
+        {
+            // Generate example signal window parameters.
+            let window_len = WindowLength::from_samples(2usize.pow(3));
+            let window_step = window_len / 4;
+            let window_fn = window_fn::rectangular;
+            // Generate samples.
+            let mut data = Vec::new();
+            for sample_num in 0..20000 {
+                let t = sample_num as f32 / sample_rate;
+                data.push(f64::from(
+                    (2.0 * std::f32::consts::PI * signal_frequency * t).sin(),
+                ));
+            }
+            let bin_width = bin_width_from_time(sample_rate, window_len.samples());
+
+            // Compute the stft.
+            let spec_compute = SpecCompute::new(data, window_len, window_step, window_fn);
+            let frequency_analysis = spec_compute.stft();
+
+            // Check for zero lengths.
+            assert!(
+                !frequency_analysis.data.is_empty(),
+                "No frequencies in frequency analysis."
+            );
+            for transient in &frequency_analysis.data {
+                assert!(!transient.is_empty(), "Transient length is 0.");
+            }
+
+            let power_transient = frequency_analysis.power();
+            let total_energy: f64 = power_transient.into_iter().sum();
+
+            // Make sure no frequency has more energy than all frequencies combined.
+            for (bin_idx, transient) in frequency_analysis.data.iter().enumerate() {
+                let freq_lower = bin_width * bin_idx as f32;
+                let freq_higher = freq_lower + bin_width;
+                let total_energy_of_freq = transient.iter().map(|x| x.powi(2)).sum::<f64>();
+                assert!(total_energy_of_freq <= total_energy, "Bin index: {bin_idx}; Frequency: {freq_lower}-{freq_higher} has energy {total_energy_of_freq} which is more than total signal's {total_energy}.");
+            }
+        }
     }
 
     // TODO make below pass. Energy leaks to adjacent bins causing fail sometimes.
