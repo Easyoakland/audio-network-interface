@@ -12,7 +12,9 @@ fn main() {
             settings
         },
         |opt| {
-            futures_lite::future::block_on(binary_logic::run(opt)).unwrap();
+            if let Err(e) = futures_lite::future::block_on(binary_logic::run(opt)) {
+                log::error!("Unhandled exception when attempting to transmit file: {e:?}");
+            }
         },
     );
 }

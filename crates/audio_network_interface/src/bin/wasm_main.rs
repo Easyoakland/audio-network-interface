@@ -15,9 +15,9 @@ fn main() {
             settings
         },
         |x| async {
-            binary_logic::run(x)
-                .await
-                .expect("Unhandled exception when attempting to transmit file")
+            if let Err(e) = binary_logic::run(x).await {
+                log::error!("Unhandled exception when attempting to transmit file: {e:?}")
+            }
         },
     );
 }

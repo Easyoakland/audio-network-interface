@@ -79,7 +79,6 @@ pub async fn receive_from_file(opt: ReceiveOpt) -> anyhow::Result<()> {
         })?;
 
     // Decode the file's sound transmission.
-    // TODO `skip while sample == 0.0` instead of hardcoded skipped samples.
     let bytes = transmit::decode_transmission(
         opt.fec_spec,
         opt.transmission_spec,
