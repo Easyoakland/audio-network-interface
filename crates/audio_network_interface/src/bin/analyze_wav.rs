@@ -96,7 +96,7 @@ fn cross_correlation_plot(ofdm_spec: &OfdmSpec, data: &[f64]) -> anyhow::Result<
 fn iq_plane(
     ofdm_spec: &OfdmSpec,
     data: &[f64],
-    subcarrier_decoders: [SubcarrierDecoder<'_, f64>; 2401],
+    subcarrier_decoders: &[SubcarrierDecoder<'_, f64>; 2401],
 ) -> anyhow::Result<()> {
     let mut decoder = OfdmFramesDecoder::new(
         data.into_iter().copied(),
@@ -195,7 +195,7 @@ fn main() -> anyhow::Result<()> {
         out
     };
 
-    iq_plane(&ofdm_spec, data_after_start, *subcarrier_decoders)?;
+    iq_plane(&ofdm_spec, data_after_start, &subcarrier_decoders)?;
 
     Ok(())
 }

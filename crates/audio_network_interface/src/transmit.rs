@@ -365,10 +365,10 @@ pub fn decode_transmission(
         }
         TransmissionSpec::Ofdm(ofdm_spec) => {
             // Describe subcarrier encoding.
-            let subcarriers_decoders = Box::leak(Box::new(
-                [SubcarrierDecoder::Data(null_decode);
-                    time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
-            ));
+            let mut subcarriers_decoders = vec![
+                SubcarrierDecoder::Data(null_decode);
+                time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)
+            ];
             for i in ofdm_spec.active_bins() {
                 subcarriers_decoders[i] = SubcarrierDecoder::Data(bpsk_decode);
             }
@@ -389,20 +389,12 @@ pub fn decode_transmission(
             // Setup decoder.
             let frames_decoder = OfdmFramesDecoder::new(
                 source.into_iter().skip(frame_start.0),
-                *subcarriers_decoders,
+                &subcarriers_decoders,
                 ofdm_spec,
             );
             // Flatten all frames of bits into a really long bitvector
             // TODO this collects the entire transmission into memory
-            // TODO this needs to allocate a box to not overflow stack on DEBUG
-            #[cfg(debug_assertions)]
-            {
-                Box::new(frames_decoder.flatten()).collect::<BitVec<u8, Lsb0>>()
-            }
-            #[cfg(not(debug_assertions))]
-            {
-                frames_decoder.flatten().collect::<BitVec<u8, Lsb0>>()
-            }
+            frames_decoder.flatten().collect::<BitVec<u8, Lsb0>>()
         }
     };
 

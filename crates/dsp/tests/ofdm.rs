@@ -29,7 +29,7 @@ proptest! {
         decoder_subcarriers[1] = SubcarrierDecoder::Data(ook_decode);
         decoder_subcarriers[2] = SubcarrierDecoder::Data(bpsk_decode);
         decoder_subcarriers[3] = SubcarrierDecoder::Data(ook_decode);
-        let decoded = OfdmDataDecoder::new(ofdm.flatten(), decoder_subcarriers, cyclic_prefix_len, [Complex::one(); 1000]).decode(input_len);
+        let decoded = OfdmDataDecoder::new(ofdm.flatten(), &decoder_subcarriers, cyclic_prefix_len, vec![Complex::one(); 1000]).decode(input_len);
 
         assert_eq!(input.into_iter().collect::<Vec<_>>(), decoded.collect::<Vec<_>>(), "left (input) != right (decoded)")
     }

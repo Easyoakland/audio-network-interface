@@ -1,4 +1,3 @@
-pub const MAX_THRESHOLD_PERCENT: usize = 90;
 use bitvec::{bitvec, prelude::Lsb0, vec::BitVec};
 use iterator_adapters::IteratorAdapter;
 use log::trace;
@@ -175,6 +174,7 @@ impl OokFdmDecoder {
         // so indices in self correspond to 1,3,5
         for (f_idx, frequency) in self.frequency_channels.iter().enumerate() {
             let bin = stft.get_bin(*frequency, self.sample_rate).unwrap();
+            const MAX_THRESHOLD_PERCENT: usize = 90;
             let threshold = bin
                 .iter()
                 .copied()
