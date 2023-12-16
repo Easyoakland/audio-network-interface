@@ -1,23 +1,6 @@
-<!DOCTYPE html><html><head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Audio Network Interface</title>
-        <style>
-            /* Allow canvas to fill entire web page: */
-            html,
-            body {
-                overflow: hidden;
-                margin: 0 !important;
-                padding: 0 !important;
-                height: 100%;
-                width: 100%;
-            }
-        </style>
-    
-<link rel="preload" href="/audio-network-interface/wasm_main-4d55cea8e8a75ff8_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/audio-network-interface/wasm_main-4d55cea8e8a75ff8.js"></head>
-    <body>
-        <script type="module">import init from '/audio-network-interface/wasm_main-4d55cea8e8a75ff8.js';init('/audio-network-interface/wasm_main-4d55cea8e8a75ff8_bg.wasm');</script>
-        <canvas id="audio_network_interface" "=""></canvas>
-    
-</body></html>
+<!doctype html><meta charset=UTF-8><meta content="width=device-width,initial-scale=1.0" name=viewport><title>Audio Network Interface</title><style>body,html{overflow:hidden;margin:0!important;padding:0!important;height:100%;width:100%}</style><link as=fetch crossorigin href=/audio-network-interface/wasm_main-35a042f6c610de910d05fc9b146d97f16130144af95049c615fbe1f1d07418854532000898171407b71de25cc73031f6_bg.wasm integrity=sha384-NaBC9sYQ3pENBfybFG2X8WEwFEr5UEnGFfvh8dB0GIVFMgAImBcUB7cd4lzHMDH2 rel=preload type=application/wasm><link crossorigin href=/audio-network-interface/wasm_main-35a042f6c610de910d05fc9b146d97f16130144af95049c615fbe1f1d07418854532000898171407b71de25cc73031f6.js integrity=sha384-WcIXHIKD5Kc8DrxUrZHp080SzM60uvUopdPb8lTQo0ml5VKK-LMllW_kYYZohAXd rel=modulepreload></head><body><script type=module>
+import init, * as bindings from '/audio-network-interface/wasm_main-35a042f6c610de910d05fc9b146d97f16130144af95049c615fbe1f1d07418854532000898171407b71de25cc73031f6.js';
+init('/audio-network-interface/wasm_main-35a042f6c610de910d05fc9b146d97f16130144af95049c615fbe1f1d07418854532000898171407b71de25cc73031f6_bg.wasm');
+window.wasmBindings = bindings;
+
+</script><canvas " id=audio_network_interface></canvas></body></html>
