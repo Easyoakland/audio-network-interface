@@ -373,7 +373,7 @@ pub fn decode_transmission(
             // TODO don't collect all source into a vec. Either reimplement detector or use a lazy collection.
             let Some(frame_start) = ofdm_premable_cross_correlation_detector(
                 &source.clone().collect::<Vec<_>>(),
-                &tx_preamble[..ofdm_spec.time_symbol_len / ofdm_spec.short_training_repetitions],
+                &tx_preamble[..ofdm_spec.time_symbol_len() / ofdm_spec.short_training_repetitions],
                 ofdm_spec.cross_correlation_threshold,
             ) else {
                 return Err(DecodingError::NoFrame(

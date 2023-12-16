@@ -6,7 +6,7 @@ use std::{
     ops::RangeInclusive,
     str::FromStr,
 };
-use stft::{fft::FourierFloat, time_samples_to_frequency};
+use stft::{fft::FourierFloat, frequency_samples_to_time};
 
 #[derive(Debug)]
 pub enum ParseRangeError<E> {
@@ -90,20 +90,25 @@ pub struct OfdmSpec {
     #[arg(short = 'r', long, default_value_t = 10)]
     pub short_training_repetitions: usize,
 
+    /*
     /// Raw length of symbol in time samples. Proportional to frequency bins.
-    // TODO switch to frequency bins as input method
     #[arg(short, long, default_value_t = 4800)]
     pub time_symbol_len: usize,
-
-    /*     /// Number of frequency bins to divide the frequency spectrum into. More bins requires longer time per symbol.
-    #[arg(short = 'n', long, default_value_t = 2401, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
-    pub bins_num: usize,
     */
+    /// Number of frequency bins to divide the frequency spectrum into. More bins allows finer frequencies and more bits per symbol, but requires longer time per symbol.
+    #[arg(short = 'n', long, default_value_t = 2401, value_parser = clap::builder::RangedU64ValueParser:: <usize> ::new().range(1..=u64::MAX))]
+    pub bin_num: usize,
+
+    /// Frequency bins used to transmit. Bits per symbol depends on this and subcarrier modulation scheme.
+    /// Start can't be 0 because dc bin can't transmit data.
+    #[arg(short = 'b', long, default_value_t = ParsedRangeInclusive(20..=83))]
+    pub active_bins: ParsedRangeInclusive<usize>,
+
     /// Length of cyclic prefix in time samples.
     #[arg(short, long, default_value_t = 480)]
     pub cyclic_prefix_len: usize,
 
-    /// The autocorrelation threshold to use when finding detecting frames.
+    /// The autocorrelation threshold to use when detecting frames.
     /// Range should be from 1.0 (exactly the same signal) to 0.0 (uncorrelated).
     #[arg(short = 'T', long, default_value_t = 0.125)]
     pub cross_correlation_threshold: f32,
@@ -111,11 +116,6 @@ pub struct OfdmSpec {
     /// The number of data symbols in a frame.
     #[arg(short, long, default_value_t = 32)]
     pub data_symbols: usize,
-
-    /// Frequency bins used to transmit. Bits per symbol depends on this and subcarrier modulation scheme.
-    /// Start can't be 0 because dc bin can't transmit data.
-    #[arg(short = 'b', long, default_value_t = ParsedRangeInclusive(20..=83))]
-    pub active_bins: ParsedRangeInclusive<usize>,
 }
 
 impl OfdmSpec {
@@ -126,7 +126,13 @@ impl OfdmSpec {
 
     /// Number of frequency bins
     pub fn bin_num(&self) -> usize {
-        time_samples_to_frequency(self.time_symbol_len)
+        // time_samples_to_frequency(self.time_symbol_len)
+        self.bin_num
+    }
+
+    /// Number of samples in time
+    pub fn time_symbol_len(&self) -> usize {
+        frequency_samples_to_time(self.bin_num)
     }
 
     /// Bins that transmit data.
@@ -142,7 +148,7 @@ impl OfdmSpec {
 
     /// Length of symbol + cyclic prefix.
     pub fn symbol_samples_len(&self) -> usize {
-        self.time_symbol_len + self.cyclic_prefix_len
+        self.time_symbol_len() + self.cyclic_prefix_len
     }
 
     /// Length of the length field.

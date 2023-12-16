@@ -12,6 +12,7 @@ use dsp::{
 use fec::{reed_solomon::ReedSolomonEncoder, traits::Function};
 use iterator_adapters::IteratorAdapter;
 use std::{hint::black_box, iter};
+use stft::time_samples_to_frequency;
 
 fn create_thread(c: &mut Criterion) {
     c.bench_function("create thread", |b| {
@@ -56,7 +57,8 @@ fn ofdm_multiframe_benchmark(c: &mut Criterion) {
     ));
     subcarriers[1] = SubcarrierEncoder::T1(bpsk_encode);
     let ofdm_spec = OfdmSpec {
-        time_symbol_len: 48,
+        // time_symbol_len: 48,
+        bin_num: time_samples_to_frequency(48),
         cyclic_prefix_len: 10,
         ..Default::default()
     };

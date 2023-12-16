@@ -17,7 +17,8 @@ const FEC_DEFAULT_SPEC: FecSpec = FecSpec { parity_shards: 5 };
 const OFDM_DEFAULT_TRANSMISSION_SPEC: TransmissionSpec = TransmissionSpec::Ofdm(OfdmSpec {
     seed: 0,
     short_training_repetitions: 10,
-    time_symbol_len: 4800,
+    // time_symbol_len: 4800,
+    bin_num: 2401,
     cyclic_prefix_len: 480,
     cross_correlation_threshold: 0.125,
     data_symbols: 32,

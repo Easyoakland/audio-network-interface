@@ -16,7 +16,7 @@ use std::{
 };
 use stft::{
     fft::{scaled_real_fft, scaled_real_ifft, FourierFloat},
-    frequency_samples_to_time, time_samples_to_frequency,
+    frequency_samples_to_time,
 };
 
 /// Pseudo random noise used in ofdm preamble symbols.
@@ -416,7 +416,7 @@ fn ofdm_long_training_symbol<T: FourierFloat>(
 pub fn ofdm_preamble_encode<T: FourierFloat>(
     ofdm_spec: &OfdmSpec,
 ) -> iter::Chain<std::vec::IntoIter<T>, std::vec::IntoIter<T>> {
-    let time_freq_len = time_samples_to_frequency(ofdm_spec.time_symbol_len);
+    let time_freq_len = ofdm_spec.bin_num();
     let short = ofdm_short_training_symbol(
         ofdm_spec.seed,
         ofdm_spec.short_training_repetitions,

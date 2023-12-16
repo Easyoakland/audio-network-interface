@@ -25,7 +25,7 @@ fn cross_correlation_plot(ofdm_spec: &OfdmSpec, data: &[f64]) -> anyhow::Result<
     let tx_preamble = ofdm_spec.preamble().collect::<Vec<_>>();
     let cross_preamble_detect = ofdm_premable_cross_correlation_detector(
         &data,
-        &tx_preamble[..ofdm_spec.time_symbol_len / REPEAT_CNT],
+        &tx_preamble[..ofdm_spec.time_symbol_len() / REPEAT_CNT],
         ofdm_spec.cross_correlation_threshold.into(),
     )
     .map(|x| x.0);
@@ -69,7 +69,7 @@ fn cross_correlation_plot(ofdm_spec: &OfdmSpec, data: &[f64]) -> anyhow::Result<
 
     let cross_correlation = cross_correlation_to_known_signal(
         &data,
-        &tx_preamble[..ofdm_spec.time_symbol_len / REPEAT_CNT],
+        &tx_preamble[..ofdm_spec.time_symbol_len() / REPEAT_CNT],
     )
     .collect();
 
@@ -155,7 +155,7 @@ fn main() -> anyhow::Result<()> {
     let tx_preamble = ofdm_preamble_encode(&ofdm_spec).collect::<Vec<_>>();
     let cross_preamble_detect = ofdm_premable_cross_correlation_detector(
         &data,
-        &tx_preamble[..ofdm_spec.time_symbol_len / REPEAT_CNT],
+        &tx_preamble[..ofdm_spec.time_symbol_len() / REPEAT_CNT],
         ofdm_spec.cross_correlation_threshold.into(),
     )
     .map(|x| x.0);
