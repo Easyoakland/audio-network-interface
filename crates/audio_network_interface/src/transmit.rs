@@ -1,8 +1,6 @@
 use crate::{
     args::FecSpec,
-    constants::{
-        REED_SOL_MAX_SHARDS, SENSITIVITY, SHARD_BITS_LEN, SHARD_BYTES_LEN, TIME_SAMPLES_PER_SYMBOL,
-    },
+    constants::{REED_SOL_MAX_SHARDS, SENSITIVITY, SHARD_BITS_LEN, SHARD_BYTES_LEN},
     transmit,
 };
 use bitvec::{prelude::Lsb0, vec::BitVec};
@@ -43,7 +41,7 @@ use std::{
     task::{Poll, Waker},
     time::Duration,
 };
-use stft::{fft::window_fn, time_samples_to_frequency, SpecCompute, WindowLength};
+use stft::{fft::window_fn, SpecCompute, WindowLength};
 use thiserror::Error;
 
 /// Writes the data given by the closure onto the output stream.
@@ -287,10 +285,9 @@ where
             }
             TransmissionSpec::Ofdm(ofdm_spec) => {
                 // Create subcarrier encoding layout.
-                let subcarriers_encoders = Box::leak(Box::new(
-                    [SubcarrierEncoder::T0(null_encode);
-                        time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)],
-                ));
+                // TODO don't need leak. Need to optionally create value in outer scope.
+                let subcarriers_encoders =
+                    vec![SubcarrierEncoder::T0(null_encode); ofdm_spec.bin_num()].leak();
                 for i in ofdm_spec.active_bins() {
                     subcarriers_encoders[i] = SubcarrierEncoder::T1(bpsk_encode);
                 }
@@ -365,10 +362,8 @@ pub fn decode_transmission(
         }
         TransmissionSpec::Ofdm(ofdm_spec) => {
             // Describe subcarrier encoding.
-            let mut subcarriers_decoders = vec![
-                SubcarrierDecoder::Data(null_decode);
-                time_samples_to_frequency(TIME_SAMPLES_PER_SYMBOL)
-            ];
+            let mut subcarriers_decoders =
+                vec![SubcarrierDecoder::Data(null_decode); ofdm_spec.bin_num()];
             for i in ofdm_spec.active_bins() {
                 subcarriers_decoders[i] = SubcarrierDecoder::Data(bpsk_decode);
             }

@@ -2,7 +2,6 @@
 pub const SHARD_BYTES_LEN: usize = 4;
 pub const SHARD_BITS_LEN: usize = SHARD_BYTES_LEN * BITS_PER_BYTE;
 pub const SENSITIVITY: f64 = 1.0;
-pub const TIME_SAMPLES_PER_SYMBOL: usize = 4800;
 
 // Constants that make sense as constants.
 pub const BITS_PER_BYTE: usize = u8::BITS as usize;

@@ -2,7 +2,7 @@ use crate::{
     args::FecSpec,
     transmit::{decode_transmission, encode_transmission, DecodingError},
 };
-use dsp::specs::{FdmSpec, OfdmSpec, TransmissionSpec};
+use dsp::specs::{FdmSpec, OfdmSpec, ParsedRangeInclusive, TransmissionSpec};
 use log::trace;
 use proptest::{prelude::ProptestConfig, proptest};
 use rand_distr::{Distribution, Normal};
@@ -21,8 +21,7 @@ const OFDM_DEFAULT_TRANSMISSION_SPEC: TransmissionSpec = TransmissionSpec::Ofdm(
     cyclic_prefix_len: 480,
     cross_correlation_threshold: 0.125,
     data_symbols: 32,
-    first_bin: 20,
-    simultaneous_bytes: 8,
+    active_bins: ParsedRangeInclusive(20..=63),
 });
 
 // TODO use:

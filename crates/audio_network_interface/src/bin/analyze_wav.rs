@@ -16,10 +16,6 @@ use plotters::style::HSLColor;
 use std::{env::args, iter, path::Path};
 use stft::time_samples_to_frequency;
 const REPEAT_CNT: usize = 10;
-const BINS: usize = 8;
-fn active_bins(first_bin: usize) -> std::ops::Range<usize> {
-    first_bin..(first_bin + BINS)
-}
 // static SUBCARRIER_ENCODERS: Box<[SubcarrierEncoder<bool, num_complex::Complex<f32>>; 2401]> =
 //     Box::new([SubcarrierEncoder::T0(null_encode::<f32>); time_samples_to_frequency(4800)]);
 // static SUBCARRIER_DECODERS: Box<[SubcarrierDecoder<'_, f64>; 2401]> =
@@ -115,7 +111,7 @@ fn iq_plane(
                 scaled_spectrum
                     .into_iter()
                     .enumerate()
-                    .filter(|(i, _)| active_bins(ofdm_spec.first_bin).contains(&i))
+                    .filter(|(i, _)| ofdm_spec.active_bins().any(|x| x == *i))
                     .map(|(_, x)| {
                         (
                             x.re as f32,
@@ -189,7 +185,7 @@ fn main() -> anyhow::Result<()> {
         let mut out = Box::new(
             [SubcarrierDecoder::Data(null_decode::<f64>); time_samples_to_frequency(4800)],
         );
-        for bin in active_bins(ofdm_spec.first_bin) {
+        for bin in ofdm_spec.active_bins() {
             out[bin] = SubcarrierDecoder::Data(bpsk_decode);
         }
         out

@@ -1,7 +1,55 @@
 use crate::ofdm::ofdm_preamble_encode;
-use clap::{builder::RangedU64ValueParser, Args, Parser, Subcommand};
-use std::ops::Range;
-use stft::fft::FourierFloat;
+use clap::{Args, Parser, Subcommand};
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+    ops::RangeInclusive,
+    str::FromStr,
+};
+use stft::{fft::FourierFloat, time_samples_to_frequency};
+
+#[derive(Debug)]
+pub enum ParseRangeError<E> {
+    Inner(E),
+    Sep,
+}
+impl<E: Display> Display for ParseRangeError<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseRangeError::Inner(e) => e.fmt(f),
+            ParseRangeError::Sep => write!(f, "no valid seperator found"),
+        }
+    }
+}
+
+impl<E: Display + Debug> Error for ParseRangeError<E> {}
+
+impl<E> From<E> for ParseRangeError<E> {
+    fn from(value: E) -> Self {
+        Self::Inner(value)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedRangeInclusive<T>(pub RangeInclusive<T>);
+
+impl<T: Display> Display for ParsedRangeInclusive<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.0.start(), self.0.end())
+    }
+}
+
+impl<T: FromStr> FromStr for ParsedRangeInclusive<T> {
+    type Err = ParseRangeError<T::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((start, end)) = s.split_once('-') {
+            Ok(Self((start.parse::<T>()?)..=(end.parse::<T>()?)))
+        } else {
+            Err(ParseRangeError::Sep)
+        }
+    }
+}
 
 /// The spec for a transmission.
 // TODO Include things like realtime_vs_file
@@ -42,10 +90,15 @@ pub struct OfdmSpec {
     #[arg(short = 'r', long, default_value_t = 10)]
     pub short_training_repetitions: usize,
 
-    /// Length of symbol in time samples.
+    /// Raw length of symbol in time samples. Proportional to frequency bins.
+    // TODO switch to frequency bins as input method
     #[arg(short, long, default_value_t = 4800)]
     pub time_symbol_len: usize,
 
+    /*     /// Number of frequency bins to divide the frequency spectrum into. More bins requires longer time per symbol.
+    #[arg(short = 'n', long, default_value_t = 2401, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
+    pub bins_num: usize,
+    */
     /// Length of cyclic prefix in time samples.
     #[arg(short, long, default_value_t = 480)]
     pub cyclic_prefix_len: usize,
@@ -59,14 +112,10 @@ pub struct OfdmSpec {
     #[arg(short, long, default_value_t = 32)]
     pub data_symbols: usize,
 
-    /// First subcarrier frequency bin index.
-    /// Can't be 0 because dc bin can't tranmit data.
-    #[arg(short, long, default_value_t = 20, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
-    pub first_bin: usize,
-
-    /// Number simultaneous bytes per symbol.
-    #[arg(short = 'b', long, default_value_t = 8, value_parser = RangedU64ValueParser::<usize>::new().range(1..=u64::MAX))]
-    pub simultaneous_bytes: usize,
+    /// Frequency bins used to transmit. Bits per symbol depends on this and subcarrier modulation scheme.
+    /// Start can't be 0 because dc bin can't transmit data.
+    #[arg(short = 'b', long, default_value_t = ParsedRangeInclusive(20..=83))]
+    pub active_bins: ParsedRangeInclusive<usize>,
 }
 
 impl OfdmSpec {
@@ -75,15 +124,25 @@ impl OfdmSpec {
         ofdm_preamble_encode(self)
     }
 
+    /// Number of frequency bins
+    pub fn bin_num(&self) -> usize {
+        time_samples_to_frequency(self.time_symbol_len)
+    }
+
     /// Bins that transmit data.
-    // TODO take subcarrier type into consideration. This will allocate too many bins if using a multi-bit bin encoding ex qpsk.
-    pub fn active_bins(&self) -> Range<usize> {
-        self.first_bin..(self.first_bin + 8 * self.simultaneous_bytes)
+    pub fn active_bins(&self) -> impl Iterator<Item = usize> + Clone + Debug {
+        self.active_bins.0.clone()
     }
 
     /// The bits sent in a symbol
+    // TODO take subcarrier type into consideration. This currently assumes 1bit/bin.
     pub fn bits_per_symbol(&self) -> usize {
-        8 * self.simultaneous_bytes
+        self.active_bins().map(|_| 1).sum()
+    }
+
+    /// Length of symbol + cyclic prefix.
+    pub fn symbol_samples_len(&self) -> usize {
+        self.time_symbol_len + self.cyclic_prefix_len
     }
 
     /// Length of the length field.
@@ -94,12 +153,7 @@ impl OfdmSpec {
                 + usize::from(length_field_bits % self.bits_per_symbol() != 0))
     }
 
-    /// Length of symbol + cyclic prefix.
-    pub fn symbol_samples_len(&self) -> usize {
-        self.time_symbol_len + self.cyclic_prefix_len
-    }
-
-    /// Length of samples transmitting data.
+    /// Length of samples transmitting data per frame.
     pub fn data_samples_len(&self) -> usize {
         self.data_symbols * self.symbol_samples_len()
     }
